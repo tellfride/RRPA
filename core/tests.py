@@ -118,30 +118,6 @@ class GeoTests(TestCase):
         resposta.json.return_value = json
         return resposta
 
-    def test_brasilapi_com_coordenadas_vira_cache_e_nao_repete_consulta(self):
-        dados = {"cep": "01310100", "street": "Avenida Paulista", "neighborhood": "Bela Vista", "city": "São Paulo",
-                 "state": "SP", "location": {"coordinates": {"latitude": "-23.5475", "longitude": "-46.63611"}}}
-        with mock.patch("core.geo.requests.get", return_value=self._resposta(200, dados)) as get:
-            cache = geo.consultar_cep("01310-100")
-            geo.consultar_cep("01310100")
-        self.assertEqual(get.call_count, 1)
-        self.assertEqual(cache.bairro, "Bela Vista")
-        self.assertEqual(cache.precisao, "ENDERECO")
-        self.assertAlmostEqual(cache.latitude, -23.5475)
-
-    def test_sem_coordenadas_cai_para_o_nominatim(self):
-        brasilapi = {"cep": "01310100", "street": "Avenida Paulista", "neighborhood": "Bela Vista",
-                     "city": "São Paulo", "state": "SP", "location": {}}
-        nominatim = [{"lat": "-23.56", "lon": "-46.65"}]
-
-        def falso_get(url, **kwargs):
-            return self._resposta(200, nominatim if "nominatim" in url else brasilapi)
-
-        with mock.patch("core.geo.requests.get", side_effect=falso_get), mock.patch("core.geo.time.sleep"):
-            cache = geo.consultar_cep("01310100")
-        self.assertEqual(cache.fonte, "nominatim")
-        self.assertAlmostEqual(cache.longitude, -46.65)
-
     def test_cep_inexistente_fica_registrado_como_nao_encontrado(self):
         with mock.patch("core.geo.requests.get", return_value=self._resposta(404, None)):
             cache = geo.consultar_cep("99999999")

@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import Configuracao, GeoCache, LogAtividade
+from .models import Configuracao, GeoArea, GeoCache, LogAtividade
 
 
 @admin.register(Configuracao)
@@ -13,6 +13,13 @@ class GeoCacheAdmin(admin.ModelAdmin):
     list_display = ("cep", "bairro", "cidade", "uf", "precisao", "fonte", "atualizado_em")
     search_fields = ("cep", "bairro", "cidade")
     list_filter = ("precisao", "fonte")
+
+
+@admin.register(GeoArea)
+class GeoAreaAdmin(admin.ModelAdmin):
+    list_display = ("nome", "cidade", "uf", "tipo", "encontrado", "atualizado_em")
+    search_fields = ("nome", "cidade")
+    list_filter = ("tipo", "encontrado")
 
 
 @admin.register(LogAtividade)

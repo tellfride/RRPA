@@ -92,6 +92,42 @@ class GeoCache(models.Model):
         """False para CEP que não existe nas bases consultadas."""
         return self.precisao != self.Precisao.NENHUMA or bool(self.cidade or self.logradouro)
 
+    # Não é campo do banco: fica True só no resultado de uma consulta que não foi gravada (endereço obtido, coordenadas ainda não).
+    provisorio = False
+
+
+class GeoArea(models.Model):
+    """Limites de um bairro (ou de uma cidade) no OpenStreetMap.
+
+    Serve para conferir se o ponto achado para um CEP cai mesmo no bairro dele: uma fonte que devolve o centro da cidade
+    para todos os CEPs é detectada porque o ponto fica fora da caixa do bairro.
+    """
+
+    class Tipo(models.TextChoices):
+        BAIRRO = "BAIRRO", "Bairro"
+        CIDADE = "CIDADE", "Cidade"
+
+    chave = models.CharField(max_length=260, primary_key=True)  # UF|cidade|bairro, sem acentos nem maiúsculas
+    tipo = models.CharField(max_length=10, choices=Tipo.choices)
+    nome = models.CharField("Bairro", max_length=120, blank=True)
+    cidade = models.CharField(max_length=100)
+    uf = models.CharField(max_length=2, blank=True)
+    sul = models.FloatField(null=True, blank=True)
+    norte = models.FloatField(null=True, blank=True)
+    oeste = models.FloatField(null=True, blank=True)
+    leste = models.FloatField(null=True, blank=True)
+    latitude = models.FloatField("Latitude do centro", null=True, blank=True)
+    longitude = models.FloatField("Longitude do centro", null=True, blank=True)
+    encontrado = models.BooleanField(default=False)  # False = o OpenStreetMap não conhece o lugar (não perguntar de novo já)
+    atualizado_em = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "limite de bairro/cidade"
+        verbose_name_plural = "limites de bairros/cidades"
+
+    def __str__(self):
+        return ", ".join(p for p in (self.nome, self.cidade, self.uf) if p)
+
 
 class LogAtividade(models.Model):
     """Trilha de auditoria: quem fez o quê e quando. Alimenta a 'Atividade recente' do painel."""
