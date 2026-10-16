@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block titulo %}Alterar minha senha{% endblock %}
+{% block conteudo %}
+<div class="page-head"><div><h1>Alterar minha senha</h1><p class="sub">Escolha uma senha com pelo menos 8 caracteres que só você conheça.</p></div></div>
+<form method="post" class="panel" style="max-width:520px" novalidate data-uma-vez>
+  {% csrf_token %}
+  <div class="panel-body stack" style="--gap:16px">
+    {% include "componentes/_form_erros.html" %}
+    {% include "componentes/_campo.html" with campo=form.old_password %}
+    {% include "componentes/_campo.html" with campo=form.new_password1 %}
+    {% include "componentes/_campo.html" with campo=form.new_password2 %}
+    <div class="form-acoes">
+      <button class="btn btn-primary" type="submit">Salvar nova senha</button>
+      <a class="btn" href="{% url 'painel:inicio' %}">Cancelar</a>
+    </div>
+  </div>
+</form>
+{% endblock %}

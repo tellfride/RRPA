@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+{% block titulo %}Candidatos{% endblock %}
+{% block conteudo %}
+<div class="page-head">
+  <div>
+    <h1>Candidatos</h1>
+    <p class="sub">Aprove quem pode ser chamado, envie mensagens e gere o link de cadastro.</p>
+  </div>
+  <div class="page-actions">
+    <a class="btn" href="{% url 'candidatos:importar' %}">{% icone "upload" %} Importar planilha</a>
+    <a class="btn btn-primary" href="{% url 'candidatos:novo' %}">{% icone "user-plus" %} Novo candidato</a>
+  </div>
+</div>
+
+<nav class="abas" aria-label="Situação">
+  {% for valor, rotulo, total in abas %}
+    <a href="?{% qs status=valor page=None %}" {% if status == valor %}aria-current="page"{% endif %}>{{ rotulo }} <span class="badge">{{ total }}</span></a>
+  {% endfor %}
+</nav>
+
+<form method="get" class="filtros" data-autoenviar>
+  <input type="hidden" name="status" value="{{ status }}">
+  <div class="busca">{% icone "search" %}<input class="input" type="search" name="q" value="{{ q }}" placeholder="Nome, CPF, telefone ou CEP" aria-label="Buscar candidato"></div>
+  <select class="select" name="vaga" aria-label="Vaga de interesse">
+    <option value="">Todas as vagas</option>
+    {% for v in vagas %}<option value="{{ v.pk }}" {% if v.pk == vaga_id %}selected{% endif %}>{{ v.nome }}</option>{% endfor %}
+  </select>
+  <select class="select" name="origem" aria-label="Origem do cadastro">
+    <option value="">Qualquer origem</option>
+    {% for valor, rotulo in origens %}<option value="{{ valor }}" {% if valor == origem %}selected{% endif %}>{{ rotulo }}</option>{% endfor %}
+  </select>
+  <select class="select" name="indicado_por" aria-label="Link fornecido por">
+    <option value="">Qualquer indicador</option>
+    {% for u in indicadores %}<option value="{{ u.pk }}" {% if u.pk == indicado_por %}selected{% endif %}>{{ u.nome_exibicao }}</option>{% endfor %}
+  </select>
+  <select class="select" name="ordem" aria-label="Ordenar por">
+    <option value="recentes" {% if ordem == "recentes" %}selected{% endif %}>Mais recentes</option>
+    <option value="nome" {% if ordem == "nome" %}selected{% endif %}>Nome (A–Z)</option>
+    <option value="bairro" {% if ordem == "bairro" %}selected{% endif %}>Bairro</option>
+  </select>
+  {% if bairro %}<input type="hidden" name="bairro" value="{{ bairro }}"><input type="hidden" name="cidade" value="{{ cidade }}"><span class="badge badge-info">{{ bairro }}</span>{% endif %}
+  <button class="btn" type="submit">Filtrar</button>
+  {% if filtrado %}<a class="btn btn-quiet" href="{% url 'candidatos:lista' %}">Limpar</a>{% endif %}
+</form>
+
+<form method="post" action="{% url 'candidatos:acoes' %}">
+  {% csrf_token %}
+  <input type="hidden" name="proximo" value="{{ request.get_full_path }}">
+  <section class="panel">
+    <div class="tabela-wrap">
+      <table class="tabela" data-selecionavel>
+        <thead>
+          <tr>
+            <th class="col-check"><input class="check" type="checkbox" data-selecionar-todos aria-label="Selecionar todos desta página"></th>
+            <th>Candidato</th><th>Onde mora</th><th>Vagas de interesse</th><th>Situação</th><th>Link fornecido por</th><th>Cadastro</th><th></th>
+          </tr>
+        </thead>
+        <tbody>
+        {% for c in candidatos %}
+          <tr>
+            <td class="col-check"><input class="check" type="checkbox" name="ids" value="{{ c.pk }}" aria-label="Selecionar {{ c.nome }}"></td>
+            <td>
+              <div class="pessoa"><span class="avatar">{{ c.nome|iniciais }}</span>
+                <div><a class="nome" href="{{ c.get_absolute_url }}">{{ c.nome }}</a><div class="sub">{{ c.telefone_formatado }} · CPF {{ c.cpf_mascarado }}</div></div>
+              </div>
+            </td>
+            <td>
+              {% if c.territorio %}{{ c.territorio }}{% else %}<span class="muted">Sem endereço</span>{% endif %}
+              {% if c.distancia_km is not None %}<div class="sub muted small">{{ c.distancia_km }} km da unidade</div>{% elif c.geo_status == "pendente" %}<div class="sub muted small">localizando…</div>{% endif %}
+            </td>
+            <td>{% for v in c.vagas_interesse.all %}<span class="badge" style="margin:1px 2px 1px 0">{{ v.nome }}</span>{% empty %}<span class="muted">—</span>{% endfor %}</td>
+            <td><span class="badge badge-{{ c.tom }}">{{ c.get_status_display }}</span></td>
+            <td>{% if c.indicado_por %}{{ c.indicado_por.nome_exibicao }}{% else %}<span class="muted">—</span>{% endif %}</td>
+            <td class="nowrap">{{ c.criado_em|date:"d/m/Y" }}</td>
+            <td class="right nowrap">
+              <a class="btn btn-sm btn-icon btn-whats" href="{% url 'mensagens:compor' %}?candidato={{ c.pk }}" aria-label="Enviar WhatsApp para {{ c.nome }}" data-dica="Enviar WhatsApp" data-dica-pos="esquerda">{% icone "message-circle" %}</a>
+            </td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="8">
+            {% if filtrado %}{% include "componentes/_vazio.html" with icone="search" titulo="Nenhum candidato com esses filtros" texto="Tire algum filtro ou busque por outro nome." %}
+            {% else %}{% include "componentes/_vazio.html" with icone="users" titulo="Nenhum candidato cadastrado" texto="Importe a planilha de uma vaga, cadastre um candidato ou envie o seu link de cadastro." acao_url="/vagas/" acao_texto="Ir para as vagas" %}{% endif %}
+          </td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% include "componentes/_paginacao.html" %}
+  </section>
+
+  <div class="barra-selecao" data-barra-selecao hidden>
+    <strong data-contador-selecao>0 selecionados</strong>
+    <button class="btn btn-sm" type="submit" name="acao" value="aprovar">{% icone "user-check" %} Aprovar</button>
+    <button class="btn btn-sm btn-whats" type="submit" name="acao" value="mensagem">{% icone "message-circle" %} Enviar mensagem</button>
+    <button class="btn btn-sm" type="submit" name="acao" value="reprovar" data-confirmar="Marcar os selecionados como não aprovados?">Não aprovar</button>
+  </div>
+</form>
+{% endblock %}

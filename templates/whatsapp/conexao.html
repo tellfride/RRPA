@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% block titulo %}WhatsApp automático{% endblock %}
+{% block conteudo %}
+<div class="page-head">
+  <div>
+    <p class="crumbs"><a href="{% url 'core:configuracoes' %}">Configurações</a> / WhatsApp</p>
+    <h1>WhatsApp automático</h1>
+    <p class="sub">Conecte o número da unidade para enviar mensagens aos candidatos em lote, sem abrir o WhatsApp de um em um.</p>
+  </div>
+  <div class="page-actions"><a class="btn" href="{% url 'mensagens:disparos' %}">{% icone "send" %} Disparos</a></div>
+</div>
+
+{% if ilegivel %}
+<div class="alerta alerta-erro" role="alert">{% icone "lock" %}<div><strong>As credenciais salvas não podem ser lidas.</strong> A chave secreta do sistema mudou desde que foram guardadas. Digite-as de novo e salve; até lá nenhum disparo sai.</div></div>
+{% endif %}
+
+<div class="grid grid-60-40">
+  <form method="post" class="panel" novalidate data-uma-vez autocomplete="off">
+    {% csrf_token %}
+    <div class="panel-body stack" style="--gap:18px">
+      {% include "componentes/_form_erros.html" %}
+      {% include "componentes/_campo.html" with campo=form.provedor %}
+
+      {% for definicao, campos in grupos %}
+      <div class="stack" style="--gap:14px" data-so-provedor="{{ definicao.chave }}">
+        <p class="small muted">{{ definicao.descricao }}</p>
+        {% for campo in campos %}{% include "componentes/_campo.html" with campo=campo %}{% endfor %}
+      </div>
+      {% endfor %}
+
+      <h2 class="secao-titulo" style="margin-bottom:0">Regras de envio</h2>
+      <div class="form-grid">
+        <div class="col-4">{% include "componentes/_campo.html" with campo=form.limite_por_minuto %}</div>
+      </div>
+      {% include "componentes/_campo.html" with campo=form.exigir_autorizacao %}
+      <p class="small muted">Quem respondeu <strong>SAIR</strong> (ou PARAR, STOP) deixa de receber automaticamente, em qualquer configuração.</p>
+
+      <div class="form-acoes">
+        <button class="btn btn-primary" type="submit" name="acao" value="testar">{% icone "shield-check" %} Salvar e testar conexão</button>
+        <button class="btn" type="submit" name="acao" value="salvar">Só salvar</button>
+      </div>
+    </div>
+  </form>
+
+  <div class="stack" style="--gap:20px">
+    <section class="panel">
+      <div class="panel-head"><div><h2>Situação</h2></div><span class="badge badge-{{ con.tom }}">{{ con.get_status_display }}</span></div>
+      <div class="panel-body">
+        <dl class="ficha" style="grid-template-columns:130px 1fr;gap:6px 12px">
+          <dt>Provedor</dt><dd>{{ con.get_provedor_display }}</dd>
+          <dt>Número</dt><dd>{{ con.numero_exibido|default:"—" }}</dd>
+          <dt>Último teste</dt><dd>{% if con.testada_em %}{{ con.testada_em|date:"d/m/Y H:i" }}{% else %}nunca{% endif %}</dd>
+        </dl>
+        {% if con.ultimo_erro %}<div class="alerta alerta-erro" style="margin:12px 0 0">{% icone "circle-alert" %}<div>{{ con.ultimo_erro }}</div></div>{% endif %}
+        {% if not con.pode_enviar %}<p class="small muted" style="margin-top:12px">Os disparos só ficam disponíveis depois que o teste da conexão passa.</p>{% endif %}
+      </div>
+    </section>
+
+    <section class="panel" data-so-provedor="meta">
+      <div class="panel-head"><div><h2>Webhook da Meta</h2><p class="sub">Entregas, leituras e respostas “SAIR” chegam por aqui.</p></div></div>
+      <div class="panel-body stack" style="--gap:12px">
+        {% if aviso_local %}<div class="alerta alerta-aviso" style="margin:0">{% icone "triangle-alert" %}<div>O endereço do sistema é local (<code>localhost</code>). A Meta só consegue chamar um endereço público com HTTPS: defina <code>RRPA_BASE_URL</code> no <code>.env</code>.</div></div>{% endif %}
+        <div class="field"><label for="url-webhook">URL de callback</label>
+          <div class="link-copiavel">
+            <input class="input" id="url-webhook" type="text" readonly value="{{ url_webhook }}">
+            <button class="btn" type="button" data-copiar="#url-webhook" data-copiado="URL copiada!">{% icone "copy" %} Copiar</button>
+          </div>
+        </div>
+        <div class="field"><label for="token-webhook">Token de verificação</label>
+          <div class="link-copiavel">
+            <input class="input" id="token-webhook" type="text" readonly value="{{ con.webhook_token }}">
+            <button class="btn" type="button" data-copiar="#token-webhook" data-copiado="Token copiado!">{% icone "copy" %} Copiar</button>
+          </div>
+        </div>
+        <form method="post">{% csrf_token %}<input type="hidden" name="acao" value="novo_token">
+          <button class="btn btn-sm" type="submit" data-confirmar="Gerar um novo token? A URL atual deixa de funcionar e você precisa cadastrar a nova na Meta.">{% icone "refresh-cw" %} Gerar novo token</button>
+        </form>
+      </div>
+    </section>
+
+    {% for definicao, campos in grupos %}
+    <section class="panel" data-so-provedor="{{ definicao.chave }}">
+      <div class="panel-head"><div><h2>Como configurar</h2></div></div>
+      <div class="panel-body">
+        <ol class="passos">{% for passo in definicao.passos %}<li>{{ passo }}</li>{% endfor %}</ol>
+      </div>
+    </section>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

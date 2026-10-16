@@ -1,0 +1,8 @@
+{# Uma "tira de assentos": cada quadrado é uma vaga (ocupada, vencendo, vencida ou livre). #}
+<div class="pips {% if linha.compacto %}compacto{% endif %}" role="group" aria-label="Assentos de {{ linha.vaga.nome }}: {{ linha.n_ocupadas }} ocupadas de {{ linha.vaga.quantidade }}">
+  {% for a in linha.assentos %}
+    {% if a.tipo == "separador" %}<span class="pip-separador" aria-hidden="true"></span>
+    {% elif links and a.url %}<a class="pip {{ a.tipo }}" href="{{ a.url }}" data-gaveta data-dica="{{ a.titulo }}" aria-label="{{ a.titulo }}"></a>
+    {% else %}<span class="pip {{ a.tipo }}" data-dica="{{ a.titulo }}" aria-label="{{ a.titulo }}" tabindex="0"></span>{% endif %}
+  {% endfor %}
+</div>

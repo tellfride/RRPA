@@ -1,0 +1,243 @@
+{% extends "base.html" %}
+{% block titulo %}Painel{% endblock %}
+{% block body_class %}{% if tv %}tv{% endif %}{% endblock %}
+{% block refresh %}{% if tv %}<meta http-equiv="refresh" content="60">{% endif %}{% endblock %}
+
+{% block conteudo %}
+<div class="painel-topo">
+  <div>
+    <h1>Painel</h1>
+    <p class="data">{{ hoje|date:"l, j \d\e F \d\e Y"|capfirst }}{% if vaga_id %} · filtrando uma vaga{% endif %}</p>
+  </div>
+  <form method="get" class="row" data-autoenviar>
+    {% if tv %}<input type="hidden" name="tv" value="1">{% endif %}
+    <label class="sr-only" for="f-vaga">Filtrar por vaga</label>
+    <select id="f-vaga" name="vaga" class="select" style="width:auto;min-width:200px">
+      <option value="">Todas as vagas</option>
+      {% for id, nome in vagas_filtro %}<option value="{{ id }}" {% if id == vaga_id %}selected{% endif %}>{{ nome }}</option>{% endfor %}
+    </select>
+    {% if tv %}
+      <a class="btn" href="?{% if vaga_id %}vaga={{ vaga_id }}{% endif %}">Sair da apresentação</a>
+    {% else %}
+      <a class="btn" href="?tv=1{% if vaga_id %}&vaga={{ vaga_id }}{% endif %}">{% icone "presentation" %} Modo apresentação</a>
+    {% endif %}
+  </form>
+</div>
+
+{% include "painel/_resumo.html" %}
+
+{% if not tv %}
+<section class="panel secao" aria-labelledby="t-fazer">
+  <div class="panel-head"><div><h2 id="t-fazer">Para fazer agora</h2><p class="sub">O que pede ação, do mais urgente para o menos urgente.</p></div></div>
+  {% if tarefas %}
+  <ul class="tarefas">
+    {% for t in tarefas %}
+    <li class="tarefa tarefa-{{ t.tom }}">
+      <span class="tarefa-numero">{{ t.numero }}</span>
+      <div class="grow"><strong>{{ t.titulo }}</strong><div class="sub">{{ t.texto }}</div></div>
+      <a class="btn btn-sm {% if forloop.first %}btn-primary{% endif %}" href="{{ t.url }}" {% if t.gaveta %}data-gaveta{% endif %}>{{ t.rotulo }} {% icone "arrow-right" %}</a>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <div class="panel-body"><p class="muted">{% icone "circle-check" %} Tudo em dia: nada pede ação agora.</p></div>
+  {% endif %}
+</section>
+
+<nav class="abas secao" aria-label="Seções do painel">
+  <a href="?{% qs aba='' %}" {% if aba == "geral" %}aria-current="page"{% endif %}>Visão geral</a>
+  <a href="?{% qs aba='analises' %}" {% if aba == "analises" %}aria-current="page"{% endif %}>Análises</a>
+</nav>
+{% endif %}
+
+{% if aba == "geral" or tv %}
+<div class="grid grid-70-30 secao">
+  {% include "painel/_quadro.html" %}
+
+  <section class="panel" aria-labelledby="t-prox">
+    <div class="panel-head">
+      <div>
+        <h2 id="t-prox">Próximos vencimentos</h2>
+        <p class="sub">Quem precisa de atenção primeiro.</p>
+      </div>
+    </div>
+    <ul class="lista-linhas" style="margin-top:10px">
+      {% for v in proximos %}
+      <li>
+        <span class="avatar avatar-sm">{{ v.candidato.nome|iniciais }}</span>
+        <div class="grow">
+          {% if eh_visualizador %}<span class="nome">{{ v.candidato.nome|nome_para:request.user }}</span>
+          {% else %}<a class="nome" href="{{ v.get_absolute_url }}">{{ v.candidato.nome }}</a>{% endif %}
+          <div class="sub truncate">{{ v.vaga.nome }} · até {{ v.data_fim|date:"d/m/Y" }}{% if v.tem_pendencia %} · check-in pendente{% endif %}</div>
+        </div>
+        <span class="prazo-etiqueta {% if v.sit == 'vencido' %}vencido{% elif v.sit == 'vencendo' %}aviso{% endif %}">{{ v.dias|dias_texto }}</span>
+        {% if pode_recrutar %}
+        <a class="btn btn-sm btn-icon btn-whats" href="{% url 'mensagens:compor' %}?candidato={{ v.candidato_id }}&vinculo={{ v.pk }}&categoria=lembrete" aria-label="Enviar lembrete de vencimento por WhatsApp" data-dica="Enviar lembrete por WhatsApp" data-dica-pos="esquerda">{% icone "message-circle" %}</a>
+        {% endif %}
+      </li>
+      {% empty %}
+      <li class="muted">Nenhum colaborador em vaga ainda.</li>
+      {% endfor %}
+    </ul>
+    <div class="panel-body">
+      <a class="btn btn-sm" href="{% url 'painel:detalhe' %}?tipo=vencendo{% if vaga_id %}&vaga={{ vaga_id }}{% endif %}" data-gaveta>Ver todos que vencem em {{ config.dias_alerta }} dias</a>
+    </div>
+  </section>
+</div>
+{% endif %}
+
+{% if aba == "analises" and not tv %}
+<div class="grid grid-3 secao">
+  <section class="panel" aria-labelledby="t-meses">
+    <div class="panel-head">
+      <div>
+        <h2 id="t-meses">Prazos por mês</h2>
+        <p class="sub">Quantos colaboradores terminam em cada mês.</p>
+      </div>
+      <button class="btn btn-sm btn-quiet alternar-tabela" type="button" data-alternar="#graf-meses|#tab-meses" aria-pressed="false">Ver como tabela</button>
+    </div>
+    <div class="panel-body">
+      <div id="graf-meses">
+        <div class="colunas">
+          {% for c in meses %}
+            {% if c.url %}<a class="coluna {{ c.tom }}" href="{{ c.url }}" data-gaveta data-dica="{{ c.descricao }}" aria-label="{{ c.descricao }}">
+            {% else %}<div class="coluna {{ c.tom }}" data-dica="{{ c.descricao }}" aria-label="{{ c.descricao }}" tabindex="0">{% endif %}
+              <span class="coluna-valor">{{ c.total }}</span>
+              <span class="coluna-barra" style="height:{{ c.altura }}%"></span>
+            {% if c.url %}</a>{% else %}</div>{% endif %}
+          {% endfor %}
+        </div>
+        <div class="colunas-rotulos">{% for c in meses %}<span>{{ c.rotulo }}</span>{% endfor %}</div>
+      </div>
+      <table id="tab-meses" class="tabela-compacta" hidden>
+        <caption class="sr-only">Prazos que terminam em cada mês</caption>
+        <thead><tr><th>Mês</th><th>Colaboradores</th></tr></thead>
+        <tbody>{% for c in meses %}<tr><td>{{ c.rotulo }}</td><td>{{ c.total }}</td></tr>{% endfor %}</tbody>
+      </table>
+    </div>
+  </section>
+
+  {% if funil %}
+  <section class="panel" aria-labelledby="t-funil">
+    <div class="panel-head">
+      <div>
+        <h2 id="t-funil">Funil de candidatos</h2>
+        <p class="sub">Do cadastro até a vaga.</p>
+      </div>
+    </div>
+    <div class="panel-body">
+      <div class="barras">
+        {% for e in funil.etapas %}
+          {% if funil.links %}<a class="barra" href="{{ e.url }}" data-gaveta>{% else %}<div class="barra">{% endif %}
+            <span class="barra-rotulo">{{ e.rotulo }}</span>
+            <span class="barra-trilho"><i style="width:{{ e.largura }}%;background:{{ e.cor }}"></i></span>
+            <span class="barra-valor">{{ e.total }}</span>
+          {% if funil.links %}</a>{% else %}</div>{% endif %}
+        {% endfor %}
+      </div>
+      {% if funil.fora %}<p class="small muted" style="margin-top:14px">Mais {{ funil.fora }} não seguiram (não aprovados ou desistiram).</p>{% endif %}
+    </div>
+  </section>
+  {% endif %}
+
+  {% if indicadores is not None %}
+  <section class="panel" aria-labelledby="t-ind">
+    <div class="panel-head">
+      <div>
+        <h2 id="t-ind">Quem trouxe candidatos</h2>
+        <p class="sub">Pessoas que forneceram o link de cadastro.</p>
+      </div>
+    </div>
+    <div class="panel-body">
+      {% if indicadores %}
+      <div class="barras">
+        {% for i in indicadores %}
+        <a class="barra" href="{% url 'candidatos:lista' %}?indicado_por={{ i.id }}">
+          <span class="barra-rotulo">{{ i.nome }}<small>{{ i.avancaram }} {% if i.avancaram == 1 %}avançou{% else %}avançaram{% endif %}</small></span>
+          <span class="barra-trilho"><i style="width:{{ i.largura }}%"></i></span>
+          <span class="barra-valor">{{ i.total }}</span>
+        </a>
+        {% endfor %}
+      </div>
+      {% else %}
+      <p class="muted">Ainda não há cadastros feitos por link. Gere o seu em <a href="{% url 'links:lista' %}">Links de cadastro</a>.</p>
+      {% endif %}
+    </div>
+  </section>
+  {% endif %}
+</div>
+
+<div class="grid grid-60-40 secao">
+  {% if radar is not None or funil %}
+  <section class="panel" aria-labelledby="t-radar">
+    <div class="panel-head">
+      <div>
+        <h2 id="t-radar">Onde moram os candidatos</h2>
+        <p class="sub">Distância em linha reta até {{ config.nome_unidade }}.</p>
+      </div>
+      <a class="btn btn-sm" href="{% url 'mapa:mapa' %}">{% icone "map-pinned" %} Abrir mapa territorial</a>
+    </div>
+    <div class="panel-body">
+      {% if radar %}
+      <div class="radar">
+        {% localize off %}
+        <svg viewBox="-100 -100 200 200" role="img" aria-label="Candidatos ao redor da unidade, em anéis de 5, 10 e 20 quilômetros">
+          {% for a in radar.aneis %}
+            <circle class="anel" cx="0" cy="0" r="{{ a.r }}"></circle>
+            <text class="rotulo" x="2" y="{{ a.r_neg|add:'-2' }}">{{ a.km }} km</text>
+          {% endfor %}
+          {% for p in radar.pontos %}<circle class="ponto" cx="{{ p.x }}" cy="{{ p.y }}" r="2.4"></circle>{% endfor %}
+          <circle class="unidade" cx="0" cy="0" r="4.2"></circle>
+        </svg>
+        {% endlocalize %}
+        <div>
+          <ul class="faixas" aria-label="Candidatos por distância">
+            {% for f in radar.faixas %}
+            <li><a href="{{ f.url }}" data-gaveta><span>{{ f.rotulo }}</span> <b>{{ f.total }}</b></a></li>
+            {% endfor %}
+          </ul>
+          {% if radar.territorios %}
+          <p class="small muted" style="margin:14px 10px 4px">Bairros com mais candidatos</p>
+          <ul class="faixas">
+            {% for t in radar.territorios %}
+            <li><a href="{{ t.url }}"><span>{{ t.bairro }} <span class="muted small">{{ t.cidade }}</span></span> <b>{{ t.total }}</b></a></li>
+            {% endfor %}
+          </ul>
+          {% endif %}
+          {% if radar.sem_localizacao %}<p class="small muted" style="margin:12px 10px 0">{{ radar.sem_localizacao }} ainda sem localização no mapa.</p>{% endif %}
+        </div>
+      </div>
+      {% else %}
+      <p class="muted">Informe o CEP da unidade em <a href="{% url 'core:configuracoes' %}">Configurações</a> para ver a distância dos candidatos.</p>
+      {% endif %}
+    </div>
+  </section>
+  {% endif %}
+
+  {% if atividade is not None %}
+  <section class="panel" aria-labelledby="t-ativ">
+    <div class="panel-head">
+      <div>
+        <h2 id="t-ativ">Atividade recente</h2>
+        <p class="sub">O que a equipe fez por último.</p>
+      </div>
+      {% if eh_admin %}<a class="btn btn-sm btn-quiet" href="{% url 'core:auditoria' %}">Ver tudo</a>{% endif %}
+    </div>
+    <ul class="lista-linhas feed" style="margin-top:10px">
+      {% for a in atividade %}
+      <li>
+        <span class="ponto"></span>
+        <div class="grow">{{ a.descricao }}<div class="sub">{{ a.usuario.nome_exibicao|default:"Sistema" }}</div></div>
+        <time datetime="{{ a.criado_em|date:'c' }}">{{ a.criado_em|timesince }} atrás</time>
+      </li>
+      {% empty %}
+      <li class="muted">Nada registrado ainda.</li>
+      {% endfor %}
+    </ul>
+  </section>
+  {% endif %}
+</div>
+{% endif %}
+
+{% if pode_checkin %}{% include "vinculos/_dialogo_checkin.html" %}{% endif %}
+{% endblock %}

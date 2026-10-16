@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block titulo %}Colaboradores em vaga{% endblock %}
+{% block conteudo %}
+<div class="page-head">
+  <div>
+    <h1>Colaboradores em vaga</h1>
+    <p class="sub">Quem ocupa ou ocupou uma vaga, até quando pode ficar e como está a validação mensal do setor.</p>
+  </div>
+  {% if pode_recrutar %}<div class="page-actions"><a class="btn btn-primary" href="{% url 'vinculos:chamar' %}">{% icone "user-plus" %} Chamar para uma vaga</a></div>{% endif %}
+</div>
+
+<nav class="abas" aria-label="Situação do vínculo">
+  {% for chave, rotulo, total in abas %}
+    <a href="?{% qs situacao=chave page=None %}" {% if situacao == chave %}aria-current="page"{% endif %}>{{ rotulo }} <span class="badge">{{ total }}</span></a>
+  {% endfor %}
+</nav>
+
+<form method="get" class="filtros" data-autoenviar>
+  <input type="hidden" name="situacao" value="{{ situacao }}">
+  <div class="busca">{% icone "search" %}<input class="input" type="search" name="q" value="{{ q }}" placeholder="Buscar colaborador" aria-label="Buscar colaborador"></div>
+  <select class="select" name="vaga" aria-label="Filtrar por vaga">
+    <option value="">Todas as vagas</option>
+    {% for v in vagas %}<option value="{{ v.pk }}" {% if v.pk == vaga_id %}selected{% endif %}>{{ v.nome }}</option>{% endfor %}
+  </select>
+  {% if vence %}<input type="hidden" name="vence" value="{{ vence|date:'Y-m' }}"><span class="badge badge-warn">Prazo termina em {{ vence|mes_longo }} <a href="?{% qs vence=None %}" aria-label="Remover filtro de mês">&times;</a></span>{% endif %}
+  <button class="btn" type="submit">Filtrar</button>
+</form>
+
+<section class="panel">
+  <div class="tabela-wrap">
+    <table class="tabela">
+      <thead><tr><th>Colaborador</th><th>Chamado em</th><th>Prazo até</th><th>Situação</th><th>Check-ins do setor</th><th></th></tr></thead>
+      <tbody>
+      {% for v in vinculos %}{% include "vinculos/_linha.html" with mostrar_vaga=True %}
+      {% empty %}
+        <tr><td colspan="6">{% include "componentes/_vazio.html" with icone="user-check" titulo="Nenhum colaborador nesta situação" texto="Mude o filtro acima ou chame um candidato aprovado para uma vaga." %}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% include "componentes/_paginacao.html" %}
+</section>
+{% if pode_checkin %}{% include "vinculos/_dialogo_checkin.html" %}{% endif %}
+{% endblock %}

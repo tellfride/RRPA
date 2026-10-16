@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% block titulo %}Configurações{% endblock %}
+{% block conteudo %}
+<div class="page-head"><div><h1>Configurações</h1><p class="sub">Regras de prazo, localização da unidade e compartilhamento do painel.</p></div></div>
+
+<div class="grid grid-60-40">
+  <form method="post" class="panel" novalidate data-uma-vez>
+    {% csrf_token %}
+    <input type="hidden" name="acao" value="salvar">
+    <div class="panel-body">
+      {% include "componentes/_form_erros.html" %}
+      <h2 class="secao-titulo">Unidade</h2>
+      <div class="form-grid">
+        <div class="col-8">{% include "componentes/_campo.html" with campo=form.nome_unidade %}</div>
+        <div class="col-4">{% include "componentes/_campo.html" with campo=form.cep_unidade %}</div>
+      </div>
+      {% if config.endereco_unidade %}<p class="small muted" style="margin-top:8px">{% icone "map-pin" %} Localizada em: {{ config.endereco_unidade }}</p>{% endif %}
+
+      <h2 class="secao-titulo" style="margin-top:24px">Prazo na vaga</h2>
+      <div class="form-grid">
+        <div class="col-4">{% include "componentes/_campo.html" with campo=form.prazo_meses %}</div>
+        <div class="col-8">{% include "componentes/_campo.html" with campo=form.contagem_prazo %}</div>
+        <div class="col-4">{% include "componentes/_campo.html" with campo=form.dias_alerta %}</div>
+        <div class="col-4">{% include "componentes/_campo.html" with campo=form.validade_convite_dias %}</div>
+      </div>
+      <div class="alerta alerta-info" style="margin-top:16px">
+        {% icone "info" %}
+        <div><strong>Meses de calendário:</strong> quem é chamado em 20/10 ocupa outubro, novembro e dezembro, e o prazo termina em 31/12. <strong>Data exata:</strong> o mesmo colaborador pode ficar até 19/01.
+        A mudança vale para as próximas chamadas; os vínculos já criados mantêm o prazo que tinham.</div>
+      </div>
+      <div class="form-acoes" style="margin-top:18px"><button class="btn btn-primary" type="submit">Salvar configurações</button></div>
+    </div>
+  </form>
+
+  <div class="stack" style="--gap:20px">
+    <section class="panel">
+      <div class="panel-head"><div><h2>Painel compartilhável</h2><p class="sub">Um link só de leitura para qualquer pessoa acompanhar as vagas, sem nomes nem dados pessoais.</p></div></div>
+      <div class="panel-body stack" style="--gap:14px">
+        {% if config.painel_publico_token %}
+          <div class="link-copiavel">
+            <input class="input" id="link-painel" type="text" readonly value="{{ url_painel }}" aria-label="Link do painel compartilhável">
+            <button class="btn" type="button" data-copiar="#link-painel" data-copiado="Link copiado!">{% icone "copy" %} Copiar</button>
+          </div>
+          <div class="btn-grupo">
+            <a class="btn btn-sm" href="{% url 'painel:publico' config.painel_publico_token %}" target="_blank" rel="noopener">Abrir {% icone "external-link" %}</a>
+            <form method="post">{% csrf_token %}<input type="hidden" name="acao" value="gerar_link_publico"><button class="btn btn-sm" type="submit" data-confirmar="Gerar um novo link? O link atual deixa de funcionar.">Gerar novo link</button></form>
+            <form method="post">{% csrf_token %}<input type="hidden" name="acao" value="revogar_link_publico"><button class="btn btn-sm btn-danger" type="submit" data-confirmar="Desativar o painel compartilhável?">Desativar</button></form>
+          </div>
+        {% else %}
+          <p class="muted">Desativado. Quem não tem acesso ao sistema não consegue ver o painel.</p>
+          <form method="post">{% csrf_token %}<input type="hidden" name="acao" value="gerar_link_publico"><button class="btn btn-primary" type="submit">Ativar link compartilhável</button></form>
+        {% endif %}
+      </div>
+    </section>
+
+    {% if RRPA_WHATSAPP_API %}
+    <section class="panel">
+      <div class="panel-head"><div><h2>WhatsApp automático</h2><p class="sub">Conexão para enviar mensagens em lote aos candidatos.</p></div><span class="badge badge-{{ conexao_whatsapp.tom }}">{{ conexao_whatsapp.get_status_display }}</span></div>
+      <div class="panel-body stack" style="--gap:12px">
+        <dl class="ficha" style="grid-template-columns:130px 1fr;gap:6px 12px">
+          <dt>Provedor</dt><dd>{{ conexao_whatsapp.get_provedor_display }}</dd>
+          <dt>Limite</dt><dd>{{ conexao_whatsapp.limite_por_minuto }} por minuto</dd>
+        </dl>
+        <div><a class="btn" href="{% url 'whatsapp:conexao' %}">{% icone "settings" %} Configurar o WhatsApp</a></div>
+      </div>
+    </section>
+    {% endif %}
+
+    <section class="panel">
+      <div class="panel-body">
+        <h2 style="font-size:16px;margin-bottom:8px">Sobre este sistema</h2>
+        <dl class="ficha" style="grid-template-columns:130px 1fr;gap:6px 12px">
+          <dt>Versão</dt><dd>{{ RRPA_VERSAO }}</dd>
+          <dt>Endereço público</dt><dd>{% if aviso_local %}<span class="badge badge-warn">não definido</span> <span class="small muted">defina RRPA_BASE_URL</span>{% else %}configurado{% endif %}</dd>
+          <dt>Modo demonstração</dt><dd>{% if RRPA_DEMO %}<span class="badge badge-warn">ligado</span> <span class="small muted">desligue em produção</span>{% else %}desligado{% endif %}</dd>
+        </dl>
+      </div>
+    </section>
+  </div>
+</div>
+{% endblock %}

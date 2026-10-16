@@ -1,0 +1,28 @@
+<tr>
+  <td>
+    <div class="pessoa">
+      <span class="avatar">{{ v.candidato.nome|iniciais }}</span>
+      <div>
+        <a class="nome" href="{{ v.get_absolute_url }}">{{ v.candidato.nome }}</a>
+        <div class="sub">{% if mostrar_vaga %}{{ v.vaga.nome }} · {% endif %}{{ v.candidato.telefone_formatado }}</div>
+      </div>
+    </div>
+  </td>
+  <td class="nowrap">{{ v.data_chamada|date:"d/m/Y" }}</td>
+  <td class="nowrap">{{ v.data_fim|date:"d/m/Y" }}</td>
+  <td style="min-width:160px">
+    {% if v.status == "ativo" %}
+      <span class="prazo-etiqueta esq {% if v.sit == 'vencido' %}vencido{% elif v.sit == 'vencendo' %}aviso{% endif %}">{{ v.dias|dias_texto|capfirst }}</span>
+      {% include "componentes/_medidor.html" with extra="fino" %}
+    {% else %}
+      <span class="badge badge-{{ v.sit_tom }}">{{ v.sit_rotulo }}</span>
+    {% endif %}
+  </td>
+  <td>{% include "vinculos/_chips.html" %}</td>
+  <td class="right nowrap">
+    <a class="btn btn-sm" href="{{ v.get_absolute_url }}">Abrir</a>
+    {% if pode_recrutar and v.status == "ativo" %}
+      <a class="btn btn-sm btn-icon btn-whats" href="{% url 'mensagens:compor' %}?candidato={{ v.candidato_id }}&vinculo={{ v.pk }}&categoria=lembrete" aria-label="Enviar lembrete por WhatsApp" data-dica="Enviar lembrete por WhatsApp" data-dica-pos="esquerda">{% icone "message-circle" %}</a>
+    {% endif %}
+  </td>
+</tr>

@@ -1,0 +1,172 @@
+{% extends "base.html" %}
+{% load static %}
+{% block titulo %}{{ candidato.nome }}{% endblock %}
+{% block head %}{% if candidato.localizado %}<link rel="stylesheet" href="{% static 'vendor/leaflet/leaflet.css' %}">{% endif %}{% endblock %}
+
+{% block conteudo %}
+<div class="page-head">
+  <div class="perfil-topo">
+    <span class="avatar avatar-lg">{{ candidato.nome|iniciais }}</span>
+    <div>
+      <p class="crumbs"><a href="{% url 'candidatos:lista' %}">Candidatos</a></p>
+      <h1>{{ candidato.nome }}</h1>
+      <p class="sub"><span class="badge badge-{{ candidato.tom }}">{{ candidato.get_status_display }}</span>
+        {% if candidato.indicado_por %} · link fornecido por <strong>{{ candidato.indicado_por.nome_exibicao }}</strong>{% endif %}</p>
+    </div>
+  </div>
+  <div class="page-actions">
+    <a class="btn btn-whats" href="{% url 'mensagens:compor' %}?candidato={{ candidato.pk }}">{% icone "message-circle" %} WhatsApp</a>
+    <a class="btn" href="{% url 'candidatos:editar' candidato.pk %}">{% icone "pencil" %} Editar</a>
+  </div>
+</div>
+
+{# O que fazer agora: o próximo passo depende da situação #}
+{% if candidato.status == "pendente" %}
+<div class="alerta alerta-info">
+  {% icone "info" %}
+  <div class="grow">
+    <strong>Aguardando aprovação.</strong> Aprovando, {{ candidato.nome|primeiro_nome }} pode ser chamado(a) para uma vaga e receber o link para completar o cadastro.
+    <div class="btn-grupo" style="margin-top:10px">
+      <form method="post" action="{% url 'candidatos:aprovar' candidato.pk %}">{% csrf_token %}<button class="btn btn-primary btn-sm" type="submit">{% icone "user-check" %} Aprovar</button></form>
+      <form method="post" action="{% url 'candidatos:convite' candidato.pk %}">{% csrf_token %}<button class="btn btn-sm" type="submit" data-confirmar="Aprovar e gerar o link de cadastro para {{ candidato.nome }}?">{% icone "link" %} Aprovar e enviar link de cadastro</button></form>
+      <button class="btn btn-sm btn-danger" type="button" data-abrir-dialogo="dlg-reprovar">Não aprovar</button>
+    </div>
+  </div>
+</div>
+{% elif candidato.status == "aprovado" %}
+<div class="alerta alerta-sucesso">
+  {% icone "circle-check" %}
+  <div class="grow">
+    <strong>Aprovado(a){% if candidato.aprovado_por %} por {{ candidato.aprovado_por.nome_exibicao }}{% endif %}.</strong>
+    {% if vagas_livres %}Pode ser chamado(a) agora:{% else %}Não há vaga livre neste momento.{% endif %}
+    <div class="btn-grupo" style="margin-top:10px">
+      {% for l in vagas_livres %}
+        <a class="btn btn-sm btn-primary" href="{% url 'vinculos:chamar' %}?candidato={{ candidato.pk }}&vaga={{ l.vaga.pk }}">Chamar para {{ l.vaga.nome }} ({{ l.livres }} {% if l.livres == 1 %}livre{% else %}livres{% endif %})</a>
+      {% endfor %}
+      <form method="post" action="{% url 'candidatos:convite' candidato.pk %}">{% csrf_token %}<button class="btn btn-sm" type="submit">{% icone "link" %} Enviar link para atualizar o cadastro</button></form>
+    </div>
+  </div>
+</div>
+{% elif candidato.status == "em_vaga" and vinculo_ativo %}
+<div class="alerta alerta-sucesso">
+  {% icone "user-check" %}
+  <div class="grow"><strong>Em vaga: {{ vinculo_ativo.vaga.nome }}.</strong> Permanência até {{ vinculo_ativo.data_fim|date:"d/m/Y" }} ({{ vinculo_ativo.dias|dias_texto }}).
+    <a href="{{ vinculo_ativo.get_absolute_url }}">Ver vínculo e check-ins</a></div>
+</div>
+{% elif candidato.status in "reprovado,desistente,concluido" %}
+<div class="alerta">
+  {% icone "info" %}
+  <div class="grow">Cadastro encerrado. Para chamar esta pessoa de novo, reabra o cadastro.
+    <div class="btn-grupo" style="margin-top:10px"><form method="post" action="{% url 'candidatos:reabrir' candidato.pk %}">{% csrf_token %}<button class="btn btn-sm" type="submit">Reabrir cadastro</button></form></div>
+  </div>
+</div>
+{% endif %}
+
+<div class="grid grid-60-40 secao" style="margin-top:6px">
+  <div class="stack" style="--gap:20px">
+    <section class="panel">
+      <div class="panel-head"><h2>Dados</h2></div>
+      <div class="panel-body">
+        <dl class="ficha">
+          <dt>CPF</dt><dd class="num">{{ candidato.cpf_formatado }}</dd>
+          <dt>Telefone / WhatsApp</dt><dd class="num">{{ candidato.telefone_formatado }}</dd>
+          <dt>E-mail</dt><dd>{{ candidato.email|default:"—" }}</dd>
+          <dt>Endereço</dt><dd>{{ candidato.endereco_completo|default:"Não informado" }}</dd>
+          <dt>Vagas de interesse</dt><dd>{% for v in candidato.vagas_interesse.all %}<a class="badge" href="{% url 'vagas:detalhe' v.pk %}" style="margin-right:4px">{{ v.nome }}</a>{% empty %}—{% endfor %}</dd>
+          <dt>Mensagens por WhatsApp</dt>
+          <dd>
+            {% if candidato.whatsapp_ok is True %}<span class="badge badge-good">{% icone "check" %} Aceita</span> <span class="small muted">desde {{ candidato.whatsapp_ok_em|date:"d/m/Y" }}</span>
+            {% elif candidato.whatsapp_ok is False %}<span class="badge badge-bad">{% icone "ban" %} Não quer receber</span>
+            {% else %}<span class="badge">Não informado</span> <span class="small muted">cadastro feito pela equipe</span>{% endif %}
+            <form method="post" action="{% url 'candidatos:whatsapp' candidato.pk %}" style="display:inline-flex;gap:6px;margin-left:8px">{% csrf_token %}
+              {% if candidato.whatsapp_ok is not False %}<button class="btn btn-sm btn-quiet" name="valor" value="nao" type="submit" data-confirmar="Registrar que {{ candidato.nome|primeiro_nome }} pediu para não receber mensagens por WhatsApp?">Pediu para não receber</button>{% endif %}
+              {% if candidato.whatsapp_ok is not True %}<button class="btn btn-sm btn-quiet" name="valor" value="sim" type="submit">Registrar que aceita</button>{% endif %}
+            </form>
+          </dd>
+          <dt>Origem</dt><dd>{{ candidato.get_origem_display }}{% if candidato.indicado_por %} · link fornecido por {{ candidato.indicado_por.nome_exibicao }}{% endif %}</dd>
+          <dt>Cadastrado em</dt><dd>{{ candidato.criado_em|date:"d/m/Y H:i" }}</dd>
+          {% if candidato.consentimento_em %}<dt>Autorização (LGPD)</dt><dd>dada em {{ candidato.consentimento_em|date:"d/m/Y H:i" }}</dd>{% endif %}
+          {% if candidato.observacoes %}<dt>Observações</dt><dd style="white-space:pre-line">{{ candidato.observacoes }}</dd>{% endif %}
+        </dl>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head"><h2>Vínculos com vagas</h2></div>
+      <div class="tabela-wrap" style="margin-top:12px">
+        <table class="tabela">
+          <thead><tr><th>Vaga</th><th>Período</th><th>Situação</th><th>Check-ins</th></tr></thead>
+          <tbody>
+          {% for v in vinculos %}
+            <tr>
+              <td><a class="nome" href="{{ v.get_absolute_url }}" style="font-weight:600">{{ v.vaga.nome }}</a></td>
+              <td class="nowrap">{{ v.data_chamada|date:"d/m/Y" }} → {{ v.data_fim|date:"d/m/Y" }}</td>
+              <td><span class="badge badge-{{ v.sit_tom }}">{{ v.sit_rotulo }}</span></td>
+              <td>{% include "vinculos/_chips.html" %}</td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="4" class="muted">Ainda não ocupou nenhuma vaga.</td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+
+  <div class="stack" style="--gap:20px">
+    {% if candidato.localizado %}
+    <section class="panel">
+      <div class="panel-head"><div><h2>Localização</h2><p class="sub">{{ candidato.territorio }}{% if candidato.distancia_km is not None %} · {{ candidato.distancia_km }} km da unidade{% endif %}</p></div></div>
+      <div class="panel-body">
+        <div id="mini-mapa" style="height:220px;border-radius:12px;overflow:hidden;border:1px solid var(--line)"></div>
+        {% if candidato.precisao_geo and candidato.precisao_geo != "ENDERECO" %}<p class="small muted" style="margin-top:8px">Posição aproximada ({% if candidato.precisao_geo == "BAIRRO" %}centro do bairro{% else %}centro da cidade{% endif %}).</p>{% endif %}
+      </div>
+    </section>
+    {% elif candidato.geo_status == "pendente" %}
+    <section class="panel"><div class="panel-body muted">{% icone "map-pin" %} A localização no mapa ainda está sendo buscada pelo CEP.</div></section>
+    {% endif %}
+
+    <section class="panel">
+      <div class="panel-head"><h2>Histórico</h2></div>
+      <div class="panel-body">
+        <ul class="linha-tempo">
+          {% for item in linha_tempo %}
+          <li><time datetime="{{ item.quando|date:'c' }}">{{ item.quando|date:"d/m/Y H:i" }}</time><strong>{{ item.titulo }}</strong>{% if item.detalhe %}<div class="small muted">{{ item.detalhe }}</div>{% endif %}</li>
+          {% endfor %}
+        </ul>
+      </div>
+    </section>
+
+    {% if eh_admin %}
+    <section class="panel">
+      <div class="panel-body">
+        <h2 style="font-size:15px;margin-bottom:6px">Privacidade (LGPD)</h2>
+        <p class="small muted" style="margin-bottom:10px">Se a pessoa pedir a exclusão dos dados, remova os dados pessoais. O histórico de vagas é mantido sem identificá-la.</p>
+        <form method="post" action="{% url 'candidatos:anonimizar' candidato.pk %}">{% csrf_token %}<button class="btn btn-sm btn-danger" type="submit" data-confirmar="Remover os dados pessoais de {{ candidato.nome }}? Isso não pode ser desfeito.">Remover dados pessoais</button></form>
+      </div>
+    </section>
+    {% endif %}
+  </div>
+</div>
+
+<dialog class="dialogo" id="dlg-reprovar" aria-labelledby="dlg-reprovar-titulo">
+  <form method="post" action="{% url 'candidatos:reprovar' candidato.pk %}">
+    {% csrf_token %}
+    <div class="dialogo-corpo">
+      <h2 id="dlg-reprovar-titulo">Não aprovar {{ candidato.nome|primeiro_nome }}?</h2>
+      <p class="muted">O cadastro fica guardado no banco de talentos e pode ser reaberto depois.</p>
+      <div class="field" style="margin-top:14px"><label for="motivo">Motivo (opcional)</label><textarea id="motivo" name="motivo" class="textarea" rows="3"></textarea></div>
+    </div>
+    <div class="dialogo-rodape"><button type="button" class="btn" data-fechar-dialogo>Cancelar</button><button type="submit" class="btn btn-danger">Não aprovar</button></div>
+  </form>
+</dialog>
+{% if candidato.localizado %}{{ mini_mapa|json_script:"mini-mapa-dados" }}{% endif %}
+{% if pode_checkin %}{% include "vinculos/_dialogo_checkin.html" %}{% endif %}
+{% endblock %}
+
+{% block scripts %}
+{% if candidato.localizado %}
+  <script src="{% static 'vendor/leaflet/leaflet.js' %}" defer></script>
+  <script src="{% static 'js/mini-mapa.js' %}?v={{ RRPA_VERSAO }}" defer></script>
+{% endif %}
+{% endblock %}

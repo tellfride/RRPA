@@ -1,0 +1,104 @@
+{% load static %}<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>{% block titulo %}Painel{% endblock %} · R-RPA</title>
+  <link rel="icon" href="{% static 'icons/favicon.svg' %}" type="image/svg+xml">
+  <link rel="preload" href="{% static 'fonts/atkinson-hyperlegible-next-latin-wght-normal.woff2' %}" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="{% static 'css/app.css' %}?v={{ RRPA_VERSAO }}">
+  {% block head %}{% endblock %}
+  {% block refresh %}{% endblock %}
+</head>
+<body class="{% block body_class %}{% endblock %}">
+  <a class="skip-link" href="#conteudo">Ir para o conteúdo</a>
+  {% with ns=request.resolver_match.namespace %}
+  <div class="app">
+    <aside class="rail" id="menu" aria-label="Menu principal">
+      <a class="brand" href="{% url 'painel:inicio' %}">
+        {% include "componentes/_logo.html" %}
+        <span>
+          <span class="brand-nome">R-RPA</span><br>
+          <span class="brand-unidade">{{ config.nome_unidade }}</span>
+        </span>
+      </a>
+
+      <nav class="nav" aria-label="Seções">
+        <a href="{% url 'painel:inicio' %}" {% if ns == 'painel' %}aria-current="page"{% endif %}>{% icone "layout-dashboard" %} Painel</a>
+        <a href="{% url 'vagas:lista' %}" {% if ns == 'vagas' %}aria-current="page"{% endif %}>{% icone "briefcase" %} Vagas</a>
+        {% if pode_recrutar %}
+        <a href="{% url 'candidatos:lista' %}" {% if ns == 'candidatos' %}aria-current="page"{% endif %}>{% icone "users" %} Candidatos</a>
+        {% endif %}
+        {% if not eh_visualizador %}
+        <a href="{% url 'vinculos:lista' %}" {% if ns == 'vinculos' %}aria-current="page"{% endif %}>{% icone "user-check" %} Colaboradores em vaga</a>
+        {% endif %}
+        {% if pode_checkin %}
+        <a href="{% url 'checkins:lista' %}" {% if ns == 'checkins' %}aria-current="page"{% endif %}>{% icone "clipboard-check" %} Check-ins
+          {% if pendencias_checkin %}<span class="badge badge-count" title="Check-ins pendentes">{{ pendencias_checkin }}</span>{% endif %}
+        </a>
+        {% endif %}
+        <a href="{% url 'mapa:mapa' %}" {% if ns == 'mapa' %}aria-current="page"{% endif %}>{% icone "map-pinned" %} Mapa territorial</a>
+
+        {% if pode_recrutar or pode_gerar_link %}<div class="nav-titulo">Captação</div>{% endif %}
+        {% if pode_recrutar %}
+        <a href="{% url 'mensagens:modelos' %}" {% if ns == 'mensagens' %}aria-current="page"{% endif %}>{% icone "message-circle" %} Mensagens de WhatsApp</a>
+        {% endif %}
+        {% if pode_gerar_link %}
+        <a href="{% url 'links:lista' %}" {% if ns == 'links' %}aria-current="page"{% endif %}>{% icone "link" %} Links de cadastro</a>
+        {% endif %}
+
+        {% if eh_admin %}
+        <div class="nav-titulo">Administração</div>
+        <a href="{% url 'contas:usuarios' %}" {% if ns == 'contas' %}aria-current="page"{% endif %}>{% icone "key-round" %} Usuários</a>
+        <a href="{% url 'core:configuracoes' %}" {% if request.resolver_match.url_name == 'configuracoes' %}aria-current="page"{% endif %}>{% icone "settings" %} Configurações</a>
+        <a href="{% url 'core:auditoria' %}" {% if request.resolver_match.url_name == 'auditoria' %}aria-current="page"{% endif %}>{% icone "history" %} Atividades</a>
+        {% endif %}
+      </nav>
+
+      <div class="rail-rodape">
+        <div class="usuario-chip">
+          <span class="avatar">{{ request.user.nome_exibicao|iniciais }}</span>
+          <span>
+            <span class="nome">{{ request.user.nome_exibicao }}</span><br>
+            <span class="perfil">{{ request.user.get_perfil_display }}</span>
+          </span>
+        </div>
+        <a class="rail-link" href="{% url 'contas:minha_senha' %}">{% icone "lock" %} Alterar minha senha</a>
+        <form method="post" action="{% url 'contas:sair' %}">{% csrf_token %}
+          <button class="rail-link" type="submit">{% icone "log-out" %} Sair</button>
+        </form>
+      </div>
+    </aside>
+
+    <div class="main">
+      <header class="topbar">
+        <button class="btn btn-icon btn-quiet" type="button" data-menu aria-controls="menu" aria-label="Abrir menu">{% icone "menu" "icon-lg" %}</button>
+        <strong>R-RPA</strong>
+      </header>
+      <main id="conteudo">
+        {% include "componentes/_mensagens.html" %}
+        {% block conteudo %}{% endblock %}
+      </main>
+    </div>
+  </div>
+  {% endwith %}
+
+  <div class="gaveta-fundo" data-gaveta-fundo></div>
+  <aside class="gaveta" id="gaveta" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="gaveta-titulo" tabindex="-1">
+    <div class="gaveta-topo">
+      <div class="grow">
+        <h2 id="gaveta-titulo">Detalhes</h2>
+        <p class="sub" id="gaveta-sub"></p>
+        <a class="small" id="gaveta-pagina" href="#" hidden>Abrir em página inteira</a>
+      </div>
+      <button class="btn btn-icon btn-quiet" type="button" data-gaveta-fechar aria-label="Fechar">{% icone "x" "icon-lg" %}</button>
+    </div>
+    <div class="gaveta-corpo" id="gaveta-corpo"></div>
+  </aside>
+  <div class="toasts" id="toasts" role="status" aria-live="polite"></div>
+
+  <script src="{% static 'js/app.js' %}?v={{ RRPA_VERSAO }}" defer></script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

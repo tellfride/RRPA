@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block titulo %}Chamar para a vaga{% endblock %}
+{% block conteudo %}
+<div class="page-head">
+  <div>
+    <p class="crumbs"><a href="{% url 'vinculos:lista' %}">Colaboradores em vaga</a> / Chamar</p>
+    <h1>Chamar para uma vaga</h1>
+    <p class="sub">O colaborador pode ficar por até {{ config.prazo_texto }}, contando a partir do mês da chamada.</p>
+  </div>
+</div>
+<form method="post" class="panel" style="max-width:760px" novalidate data-uma-vez>
+  {% csrf_token %}
+  <div class="panel-body">
+    {% include "componentes/_form_erros.html" %}
+    <div class="form-grid">
+      <div class="col-12">{% include "componentes/_campo.html" with campo=form.candidato %}</div>
+      <div class="col-6">{% include "componentes/_campo.html" with campo=form.vaga %}</div>
+      <div class="col-6">{% include "componentes/_campo.html" with campo=form.data_chamada %}</div>
+      <div class="col-12">
+        <div class="alerta alerta-info" style="margin:0" aria-live="polite">
+          {% icone "calendar-clock" %}
+          <div data-previa-prazo-saida>Escolha a data da chamada para ver até quando a pessoa poderá ficar.</div>
+        </div>
+      </div>
+      <div class="col-12">{% include "componentes/_campo.html" with campo=form.observacoes %}</div>
+    </div>
+    <div class="form-acoes" style="margin-top:20px">
+      <button class="btn btn-primary" type="submit">Chamar para a vaga</button>
+      <a class="btn" href="{% url 'vinculos:lista' %}">Cancelar</a>
+    </div>
+    <p class="small muted" style="margin-top:12px">Depois de chamar, você poderá enviar a convocação por WhatsApp.</p>
+  </div>
+</form>
+{% endblock %}

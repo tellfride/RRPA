@@ -1,0 +1,27 @@
+{# Diálogo único de check-in; cada botão "Registrar" preenche os campos via data-campo-* e data-texto-* #}
+<dialog class="dialogo" id="dlg-checkin" aria-labelledby="dlg-checkin-titulo">
+  <form method="post" action="{% url 'checkins:registrar' %}" data-uma-vez>
+    {% csrf_token %}
+    <input type="hidden" name="vinculo">
+    <input type="hidden" name="competencia">
+    <input type="hidden" name="proximo" value="{{ request.get_full_path }}">
+    <div class="dialogo-corpo">
+      <h2 id="dlg-checkin-titulo">Check-in do RPA</h2>
+      <p class="muted"><strong data-texto="pessoa"></strong> · <span data-texto="mes"></span></p>
+      <fieldset class="escolhas" style="margin-top:16px">
+        <legend class="label" style="margin-bottom:8px;font-weight:600">O colaborador cumpriu o RPA contratado neste mês?</legend>
+        <label class="escolha"><input type="radio" name="resultado" value="cumpriu" required> {% icone "circle-check" %} Cumpriu o RPA</label>
+        <label class="escolha"><input type="radio" name="resultado" value="parcial"> {% icone "clock" %} Cumpriu em parte</label>
+        <label class="escolha"><input type="radio" name="resultado" value="nao_cumpriu"> {% icone "circle-x" %} Não cumpriu</label>
+      </fieldset>
+      <div class="field" style="margin-top:16px">
+        <label for="dlg-checkin-obs">Observação <span class="muted" style="font-weight:400">(obrigatória se não cumpriu por completo)</span></label>
+        <textarea id="dlg-checkin-obs" name="observacao" class="textarea" rows="3" maxlength="500" placeholder="Ex.: faltou dois dias sem aviso."></textarea>
+      </div>
+    </div>
+    <div class="dialogo-rodape">
+      <button type="button" class="btn" data-fechar-dialogo>Cancelar</button>
+      <button type="submit" class="btn btn-primary">Salvar check-in</button>
+    </div>
+  </form>
+</dialog>

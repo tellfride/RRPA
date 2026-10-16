@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% block titulo %}Conferir planilha{% endblock %}
+{% block conteudo %}
+<div class="page-head">
+  <div>
+    <p class="crumbs"><a href="{% url 'candidatos:importacoes' %}">Importações</a> / {{ importacao.nome_arquivo }}</p>
+    <h1>Conferir planilha</h1>
+    <p class="sub">{{ importacao.nome_arquivo }}{% if importacao.vaga %} · vaga <strong>{{ importacao.vaga.nome }}</strong>{% endif %}</p>
+  </div>
+</div>
+
+<div class="passos" aria-label="Etapas">
+  <span class="passo feito">1. Enviar arquivo</span><span class="passo {% if importacao.status == 'previa' %}atual{% else %}feito{% endif %}">2. Conferir</span><span class="passo {% if importacao.status == 'confirmada' %}feito{% endif %}">3. Cadastrar</span>
+</div>
+
+<div class="estatisticas">
+  <div class="estatistica"><b class="num">{{ importacao.total }}</b><span>linhas lidas</span></div>
+  <div class="estatistica"><b class="num" style="color:var(--good-ink)">{{ importacao.novas }}</b><span>novos candidatos</span></div>
+  <div class="estatistica"><b class="num">{{ importacao.duplicadas }}</b><span>já cadastrados (só vincula à vaga)</span></div>
+  <div class="estatistica"><b class="num" {% if importacao.erros %}style="color:var(--bad-ink)"{% endif %}>{{ importacao.erros }}</b><span>com problema</span></div>
+</div>
+
+{% if importacao.status == "previa" %}
+<section class="panel secao">
+  <div class="panel-body row-between">
+    <div>
+      {% if importacao.novas or importacao.duplicadas %}
+        <strong>Pronto para cadastrar {{ importacao.novas }} {% if importacao.novas == 1 %}pessoa{% else %}pessoas{% endif %}.</strong>
+        {% if importacao.erros %}<div class="small muted">As {{ importacao.erros }} linhas com problema ficam de fora.</div>{% endif %}
+      {% else %}
+        <strong>Nenhuma linha pode ser importada.</strong> <span class="muted">Corrija a planilha e envie de novo.</span>
+      {% endif %}
+    </div>
+    <div class="btn-grupo">
+      {% if importacao.erros %}<a class="btn" href="{% url 'candidatos:erros_xlsx' importacao.pk %}">{% icone "download" %} Baixar linhas com problema</a>{% endif %}
+      <form method="post" action="{% url 'candidatos:cancelar_importacao' importacao.pk %}">{% csrf_token %}<button class="btn" type="submit">Cancelar</button></form>
+      {% if importacao.novas or importacao.duplicadas %}
+      <form method="post" action="{% url 'candidatos:confirmar_importacao' importacao.pk %}" data-uma-vez>{% csrf_token %}
+        <button class="btn btn-primary" type="submit">Cadastrar {{ importacao.novas }} {% if importacao.novas == 1 %}candidato{% else %}candidatos{% endif %}</button>
+      </form>
+      {% endif %}
+    </div>
+  </div>
+</section>
+{% else %}
+<div class="alerta alerta-info secao">{% icone "info" %}<div>Esta importação está <strong>{{ importacao.get_status_display|lower }}</strong>{% if importacao.status == "confirmada" %}: {{ importacao.criadas }} candidatos cadastrados e {{ importacao.vinculadas }} já existentes vinculados à vaga.{% else %}.{% endif %}</div></div>
+{% endif %}
+
+{% if com_erro %}
+<section class="panel secao">
+  <div class="panel-head"><div><h2>Linhas com problema</h2><p class="sub">Corrija na planilha e reenvie só estas linhas.</p></div></div>
+  <div class="tabela-wrap" style="margin-top:12px">
+    <table class="tabela">
+      <thead><tr><th class="num">Linha</th><th>Nome</th><th>CPF</th><th>Problema</th></tr></thead>
+      <tbody>
+      {% for l in com_erro %}
+        <tr><td class="num">{{ l.linha }}</td><td>{{ l.nome|default:"—" }}</td><td class="num">{{ l.cpf|cpf_mascarado }}</td><td style="color:var(--bad-ink)">{{ l.erros|join:" " }}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endif %}
+
+<section class="panel secao">
+  <div class="panel-head"><div><h2>Primeiras linhas</h2><p class="sub">Mostrando {{ amostra|length }} de {{ importacao.total }}.</p></div></div>
+  <div class="tabela-wrap" style="margin-top:12px">
+    <table class="tabela">
+      <thead><tr><th class="num">Linha</th><th>Nome</th><th>CPF</th><th>Telefone</th><th>CEP</th><th>Resultado</th></tr></thead>
+      <tbody>
+      {% for l in amostra %}
+        <tr>
+          <td class="num">{{ l.linha }}</td><td>{{ l.nome }}</td><td class="num">{{ l.cpf|cpf_mascarado }}</td><td class="num">{{ l.telefone|telefone }}</td><td class="num">{{ l.cep|cep }}</td>
+          <td>
+            {% if l.estado == "nova" %}<span class="badge badge-good">{% icone "check" %} Novo</span>
+            {% elif l.estado == "duplicada" %}<span class="badge badge-info">Já cadastrado: {{ l.existente }}</span>
+            {% else %}<span class="badge badge-bad">{% icone "triangle-alert" %} Problema</span>{% endif %}
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}

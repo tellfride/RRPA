@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block titulo %}{{ titulo }}{% endblock %}
+{% block conteudo %}
+<div class="page-head">
+  <div>
+    <p class="crumbs"><a href="{% url 'painel:inicio' %}">Painel</a></p>
+    <h1>{{ titulo }}</h1>
+    {% if sub %}<p class="sub">{{ sub }}</p>{% endif %}
+  </div>
+  {% if pagina %}<div class="page-actions"><a class="btn" href="{{ pagina }}">Abrir lista completa</a></div>{% endif %}
+</div>
+<section class="panel"><div class="panel-body">{% include "painel/_detalhe.html" %}</div></section>
+{% if pode_checkin %}{% include "vinculos/_dialogo_checkin.html" %}{% endif %}
+{% endblock %}

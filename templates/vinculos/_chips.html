@@ -1,0 +1,18 @@
+{# Um chip por mês do período. Quem pode validar clica no chip para abrir o check-in. #}
+<span class="meses">
+{% for c in v.chips %}
+  {% if pode_checkin and c.estado != "futuro" and c.estado != "dispensado" %}
+  <button type="button" class="mes-chip {{ c.estado }}" data-abrir-dialogo="dlg-checkin"
+          data-campo-vinculo="{{ v.pk }}" data-campo-competencia="{{ c.competencia|date:'Y-m-d' }}"
+          data-texto-pessoa="{{ v.candidato.nome }}" data-texto-mes="{{ c.competencia|mes_longo }}"
+          data-campo-resultado="{{ c.checkin.resultado|default:'' }}" data-campo-observacao="{{ c.checkin.observacao|default:'' }}"
+          data-dica="{{ c.descricao }}{% if c.checkin.observacao %}&#10;“{{ c.checkin.observacao }}”{% endif %}">
+    {% if c.estado == "cumpriu" %}{% icone "circle-check" %}{% elif c.estado == "parcial" %}{% icone "circle-alert" %}{% elif c.estado == "nao_cumpriu" %}{% icone "circle-x" %}{% elif c.estado == "atrasado" %}{% icone "triangle-alert" %}{% else %}{% icone "clock" %}{% endif %}{{ c.rotulo }}
+  </button>
+  {% else %}
+  <span class="mes-chip {{ c.estado }}" data-dica="{{ c.descricao }}{% if c.checkin.observacao %}&#10;“{{ c.checkin.observacao }}”{% endif %}" tabindex="0">
+    {% if c.estado == "cumpriu" %}{% icone "circle-check" %}{% elif c.estado == "parcial" %}{% icone "circle-alert" %}{% elif c.estado == "nao_cumpriu" %}{% icone "circle-x" %}{% elif c.estado == "atrasado" %}{% icone "triangle-alert" %}{% elif c.estado == "pendente" %}{% icone "clock" %}{% endif %}{{ c.rotulo }}
+  </span>
+  {% endif %}
+{% endfor %}
+</span>

@@ -1,0 +1,10 @@
+{% extends "base_publico.html" %}
+{% block titulo %}Cadastro recebido{% endblock %}
+{% block conteudo %}
+<div class="publico-caixa">
+  <div class="sucesso-selo">{% icone "check" %}</div>
+  <h1>Cadastro recebido</h1>
+  <p class="muted" style="margin-top:8px">Obrigado! A equipe de recrutamento da {{ config.nome_unidade }} vai analisar seus dados. Se houver vaga, você receberá uma mensagem no WhatsApp informado.</p>
+  <p class="small muted" style="margin-top:14px">Você já pode fechar esta página.</p>
+</div>
+{% endblock %}

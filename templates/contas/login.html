@@ -1,0 +1,67 @@
+{% load static %}<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>Entrar · R-RPA</title>
+  <link rel="icon" href="{% static 'icons/favicon.svg' %}" type="image/svg+xml">
+  <link rel="preload" href="{% static 'fonts/atkinson-hyperlegible-next-latin-wght-normal.woff2' %}" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="{% static 'css/app.css' %}?v={{ RRPA_VERSAO }}">
+</head>
+<body>
+  <div class="login">
+    <section class="login-marca" aria-label="Sobre o sistema">
+      <a class="brand" href="/" style="pointer-events:none">
+        {% include "componentes/_logo.html" %}
+        <span>
+          <span class="brand-nome">R-RPA</span><br>
+          <span class="brand-unidade">{{ config.nome_unidade }}</span>
+        </span>
+      </a>
+      <div>
+        <h1>Quem ocupa cada vaga, e até quando.</h1>
+        <p>Acompanhe os colaboradores em RPA, o prazo de {{ config.prazo_texto }} de cada um e a validação mensal do setor — tudo em uma tela.</p>
+      </div>
+      <div class="login-quadro" aria-hidden="true">
+        <i class="o"></i><i class="o"></i><i class="o"></i><i class="o"></i><i class="o"></i><i class="o"></i><i class="o"></i><i class="o"></i><i class="v"></i><i></i><i></i><i></i>
+        <i class="o"></i><i class="o"></i><i class="o"></i><i class="o"></i><i class="o"></i><i class="o"></i><i class="o"></i><i class="o"></i><i class="o"></i><i class="o"></i><i class="v"></i><i></i>
+        <i class="o"></i><i class="o"></i><i class="o"></i><i class="o"></i><i class="o"></i><i class="v"></i><i class="v"></i><i></i><i></i><i></i><i></i><i></i>
+        <i class="o"></i><i class="o"></i><i class="o"></i><i class="o"></i><i class="o"></i><i class="o"></i><i class="o"></i><i class="o"></i><i class="o"></i><i class="o"></i><i></i><i></i>
+        <i class="o"></i><i class="o"></i><i class="o"></i><i class="v"></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+      </div>
+    </section>
+
+    <section class="login-form">
+      <div class="caixa">
+        <h2>Entrar</h2>
+        <p class="muted" style="margin-bottom:22px">Use o usuário e a senha que o administrador criou para você.</p>
+        <form method="post" novalidate data-uma-vez>
+          {% csrf_token %}
+          <input type="hidden" name="next" value="{{ next }}">
+          {% include "componentes/_form_erros.html" %}
+          <div class="stack" style="--gap:16px">
+            {% include "componentes/_campo.html" with campo=form.username %}
+            {% include "componentes/_campo.html" with campo=form.password %}
+            <button class="btn btn-primary" type="submit" style="width:100%">Entrar</button>
+          </div>
+        </form>
+
+        {% if RRPA_DEMO and demo_contas %}
+        <div class="demo-contas">
+          <h3>Modo demonstração</h3>
+          <p class="small muted">Os dados são fictícios. Escolha um perfil para ver o sistema como essa pessoa vê.</p>
+          <div class="chips">
+            {% for c in demo_contas %}
+              <button type="button" class="chip" data-preencher-login data-usuario="{{ c.username }}" data-senha="{{ demo_senha }}">{{ c.perfil_rotulo }}</button>
+            {% endfor %}
+          </div>
+        </div>
+        {% endif %}
+      </div>
+    </section>
+  </div>
+  <div class="toasts" id="toasts" role="status" aria-live="polite"></div>
+  <script src="{% static 'js/app.js' %}?v={{ RRPA_VERSAO }}" defer></script>
+</body>
+</html>

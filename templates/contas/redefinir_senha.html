@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block titulo %}Nova senha{% endblock %}
+{% block conteudo %}
+<div class="page-head">
+  <div>
+    <p class="crumbs"><a href="{% url 'contas:usuarios' %}">Usuários</a> / {{ usuario_alvo.nome_exibicao }}</p>
+    <h1>Definir nova senha</h1>
+    <p class="sub">Para {{ usuario_alvo.nome_exibicao }}. Combine com a pessoa um canal seguro para informar a senha.</p>
+  </div>
+</div>
+<form method="post" class="panel" style="max-width:520px" novalidate data-uma-vez>
+  {% csrf_token %}
+  <div class="panel-body stack" style="--gap:16px">
+    {% include "componentes/_form_erros.html" %}
+    {% include "componentes/_campo.html" with campo=form.new_password1 %}
+    {% include "componentes/_campo.html" with campo=form.new_password2 %}
+    <div class="form-acoes">
+      <button class="btn btn-primary" type="submit">Definir senha</button>
+      <a class="btn" href="{% url 'contas:usuarios' %}">Cancelar</a>
+    </div>
+  </div>
+</form>
+{% endblock %}

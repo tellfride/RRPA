@@ -1,0 +1,29 @@
+{% load static %}<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <meta name="robots" content="noindex, nofollow">
+  <title>{% block titulo %}Cadastro{% endblock %} · R-RPA</title>
+  <link rel="icon" href="{% static 'icons/favicon.svg' %}" type="image/svg+xml">
+  <link rel="preload" href="{% static 'fonts/atkinson-hyperlegible-next-latin-wght-normal.woff2' %}" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="{% static 'css/app.css' %}?v={{ RRPA_VERSAO }}">
+  {% block head %}{% endblock %}
+</head>
+<body class="{% block body_class %}{% endblock %}">
+  <div class="publico">
+    <div class="publico-cabeca {% block largura %}{% endblock %}">
+      <span style="color:var(--rail)">{% include "componentes/_logo.html" %}</span>
+      <div>
+        <strong style="font-size:18px">R-RPA</strong><br>
+        <span class="muted small">{{ config.nome_unidade }}</span>
+      </div>
+    </div>
+    {% block conteudo %}{% endblock %}
+  </div>
+  <div class="toasts" id="toasts" role="status" aria-live="polite"></div>
+  <script src="{% static 'js/app.js' %}?v={{ RRPA_VERSAO }}" defer></script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

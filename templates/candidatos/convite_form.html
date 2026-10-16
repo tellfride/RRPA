@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block titulo %}Novo convite{% endblock %}
+{% block conteudo %}
+<div class="page-head">
+  <div>
+    <p class="crumbs"><a href="{% url 'links:lista' %}">Links de cadastro</a> / Novo convite</p>
+    <h1>Novo convite de cadastro</h1>
+    <p class="sub">Gere um link só para esta pessoa. O cadastro dela ficará ligado a você, que forneceu o link.</p>
+  </div>
+</div>
+<form method="post" class="panel" style="max-width:720px" novalidate data-uma-vez>
+  {% csrf_token %}
+  <div class="panel-body">
+    {% include "componentes/_form_erros.html" %}
+    <div class="form-grid">
+      <div class="col-6">{% include "componentes/_campo.html" with campo=form.nome %}</div>
+      <div class="col-6">{% include "componentes/_campo.html" with campo=form.telefone %}</div>
+      <div class="col-6">{% include "componentes/_campo.html" with campo=form.vaga %}</div>
+      <div class="col-6">{% include "componentes/_campo.html" with campo=form.validade_dias %}</div>
+      <div class="col-12">
+        <div class="consentimento">{% include "componentes/_campo.html" with campo=form.aprovado %}</div>
+      </div>
+    </div>
+    <div class="form-acoes" style="margin-top:20px">
+      <button class="btn btn-primary" type="submit">{% if pode_recrutar %}Criar e preparar mensagem{% else %}Criar convite{% endif %}</button>
+      <a class="btn" href="{% url 'links:lista' %}">Cancelar</a>
+    </div>
+  </div>
+</form>
+{% endblock %}

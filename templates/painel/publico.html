@@ -1,0 +1,40 @@
+{% extends "base_publico.html" %}
+{% block titulo %}Painel de vagas{% endblock %}
+{% block head %}<meta http-equiv="refresh" content="120">{% endblock %}
+{% block largura %}publico-largo{% endblock %}
+
+{% block conteudo %}
+<div class="publico-largo" style="width:min(1180px,100%)">
+  <div class="painel-topo" style="padding-top:0">
+    <div>
+      <h1>Vagas em {{ config.nome_unidade }}</h1>
+      <p class="data">{{ hoje|date:"l, j \d\e F \d\e Y"|capfirst }} · painel compartilhado, sem dados pessoais</p>
+    </div>
+  </div>
+
+  {% include "painel/_resumo.html" %}
+
+  <div class="grid grid-70-30 secao">
+    {% include "painel/_quadro.html" %}
+    <section class="panel" aria-labelledby="t-meses">
+      <div class="panel-head">
+        <div>
+          <h2 id="t-meses">Prazos por mês</h2>
+          <p class="sub">Quantos colaboradores terminam em cada mês.</p>
+        </div>
+      </div>
+      <div class="panel-body">
+        <div class="colunas">
+          {% for c in meses %}
+          <div class="coluna {{ c.tom }}" data-dica="{{ c.descricao }}" aria-label="{{ c.descricao }}" tabindex="0">
+            <span class="coluna-valor">{{ c.total }}</span>
+            <span class="coluna-barra" style="height:{{ c.altura }}%"></span>
+          </div>
+          {% endfor %}
+        </div>
+        <div class="colunas-rotulos">{% for c in meses %}<span>{{ c.rotulo }}</span>{% endfor %}</div>
+      </div>
+    </section>
+  </div>
+</div>
+{% endblock %}

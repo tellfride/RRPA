@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block titulo %}{{ disparo.nome }}{% endblock %}
+{% block refresh %}{% if disparo.ativo %}<meta http-equiv="refresh" content="10">{% endif %}{% endblock %}
+{% block conteudo %}
+<div class="page-head">
+  <div>
+    <p class="crumbs"><a href="{% url 'mensagens:modelos' %}">Mensagens de WhatsApp</a> / <a href="{% url 'mensagens:disparos' %}">Disparos</a> / nº {{ disparo.pk }}</p>
+    <h1>{{ disparo.nome }} <span class="badge badge-{{ disparo.tom }}" style="vertical-align:middle">{{ disparo.get_status_display }}</span></h1>
+    <p class="sub">Criado {{ disparo.criado_em|date:"d/m/Y H:i" }} por {{ disparo.criado_por.nome_exibicao|default:"—" }} · {{ disparo.provedor_rotulo }} · até {{ disparo.ritmo_por_minuto }} mensagens por minuto{% if disparo.template_nome %} · template <code>{{ disparo.template_nome }}</code>{% endif %}</p>
+  </div>
+  <div class="page-actions">
+    {% if disparo.status == "em_andamento" %}
+      <form method="post" action="{% url 'mensagens:disparo_controle' disparo.pk %}">{% csrf_token %}<input type="hidden" name="acao" value="pausar"><button class="btn" type="submit">{% icone "clock" %} Pausar</button></form>
+    {% elif disparo.status == "pausado" %}
+      <form method="post" action="{% url 'mensagens:disparo_controle' disparo.pk %}">{% csrf_token %}<input type="hidden" name="acao" value="retomar"><button class="btn btn-primary" type="submit">{% icone "send" %} Retomar</button></form>
+    {% endif %}
+    {% if pode_reenviar %}
+      <form method="post" action="{% url 'mensagens:disparo_controle' disparo.pk %}">{% csrf_token %}<input type="hidden" name="acao" value="reenviar"><button class="btn" type="submit" data-confirmar="Colocar as {{ total.reenviaveis }} falha(s) de volta na fila?">{% icone "refresh-cw" %} Reenviar falhas ({{ total.reenviaveis }})</button></form>
+    {% endif %}
+    {% if disparo.ativo %}
+      <form method="post" action="{% url 'mensagens:disparo_controle' disparo.pk %}">{% csrf_token %}<input type="hidden" name="acao" value="cancelar"><button class="btn btn-danger" type="submit" data-confirmar="Cancelar o disparo? As mensagens que ainda estão na fila não serão enviadas.">Cancelar</button></form>
+    {% endif %}
+  </div>
+</div>
+
+{% if disparo.status == "pausado" and disparo.motivo_pausa %}
+<div class="alerta alerta-aviso">{% icone "triangle-alert" %}<div><strong>Disparo pausado.</strong> {{ disparo.motivo_pausa }}</div></div>
+{% endif %}
+
+<section class="panel">
+  <div class="panel-body">
+    <div class="contadores">
+      <div class="contador"><span>Pessoas</span><strong>{{ total.total }}</strong></div>
+      <div class="contador"><span>Na fila</span><strong>{{ total.fila }}</strong></div>
+      <div class="contador"><span>Enviadas</span><strong>{{ total.enviadas }}</strong></div>
+      <div class="contador"><span>Entregues</span><strong>{{ total.entregues }}</strong></div>
+      <div class="contador"><span>Lidas</span><strong>{{ total.lidas }}</strong></div>
+      <div class="contador {% if total.falhas %}ruim{% endif %}"><span>Falhas</span><strong>{{ total.falhas }}</strong></div>
+      <div class="contador"><span>Não enviadas</span><strong>{{ total.ignoradas }}</strong></div>
+    </div>
+    <div class="medidor" style="margin-top:16px" role="img" aria-label="{{ total.pct }}% das mensagens já foram resolvidas"><i style="width:{{ total.pct }}%"></i></div>
+    <p class="small muted" style="margin-top:6px">{{ total.resolvidas }} de {{ total.total }} resolvidas ({{ total.pct }}%).{% if disparo.ativo %} Esta página se atualiza sozinha.{% endif %}</p>
+  </div>
+</section>
+
+<nav class="abas secao" aria-label="Filtrar por situação">
+  <a href="?{% qs status='' page=None %}" {% if not status %}aria-current="page"{% endif %}>Todas</a>
+  {% for valor, rotulo in status_opcoes %}<a href="?{% qs status=valor page=None %}" {% if status == valor %}aria-current="page"{% endif %}>{{ rotulo }}</a>{% endfor %}
+</nav>
+
+<section class="panel">
+  <div class="tabela-wrap">
+    <table class="tabela">
+      <thead><tr><th>Pessoa</th><th>Situação</th><th>Detalhe</th><th>Enviada</th><th class="num">Tentativas</th></tr></thead>
+      <tbody>
+      {% for m in itens %}
+        <tr>
+          <td>{% if m.candidato %}<a class="nome" href="{{ m.candidato.get_absolute_url }}">{{ m.nome_destino }}</a>{% else %}{{ m.nome_destino }}{% endif %}<div class="sub muted small num">{{ m.telefone|telefone }}</div></td>
+          <td><span class="badge badge-{{ m.tom }}">{{ m.get_status_display }}</span></td>
+          <td>{% if m.erro %}<span class="small">{{ m.erro }}</span>{% elif m.texto %}<details><summary class="small muted" style="cursor:pointer">Ver mensagem</summary><div class="envio-texto">{{ m.texto }}</div></details>{% else %}<span class="muted">—</span>{% endif %}</td>
+          <td class="nowrap">{{ m.enviada_em|date:"d/m H:i:s"|default:"—" }}</td>
+          <td class="num">{{ m.tentativas }}</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="5">{% include "componentes/_vazio.html" with icone="send" titulo="Nenhuma mensagem nesta situação" %}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% include "componentes/_paginacao.html" %}
+</section>
+{% endblock %}

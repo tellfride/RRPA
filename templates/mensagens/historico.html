@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block titulo %}Mensagens enviadas{% endblock %}
+{% block conteudo %}
+<div class="page-head">
+  <div><p class="crumbs"><a href="{% url 'mensagens:modelos' %}">Mensagens de WhatsApp</a> / Enviadas</p><h1>Mensagens enviadas</h1><p class="sub">Toda vez que alguém abre o WhatsApp por aqui, fica registrado quem enviou, para quem e o texto.</p></div>
+</div>
+<form method="get" class="filtros">
+  <div class="busca">{% icone "search" %}<input class="input" type="search" name="q" value="{{ q }}" placeholder="Buscar por nome ou texto" aria-label="Buscar mensagem"></div>
+  <button class="btn" type="submit">Buscar</button>
+</form>
+<section class="panel">
+  <div class="tabela-wrap">
+    <table class="tabela">
+      <thead><tr><th>Quando</th><th>Para</th><th>Modelo</th><th>Enviado por</th><th>Mensagem</th></tr></thead>
+      <tbody>
+      {% for e in envios %}
+        <tr>
+          <td class="nowrap">{{ e.criado_em|date:"d/m/Y H:i" }}</td>
+          <td>{% if e.candidato %}<a href="{{ e.candidato.get_absolute_url }}">{{ e.nome_destino }}</a>{% else %}{{ e.nome_destino }}{% endif %}<div class="sub muted small num">{{ e.telefone|telefone }}</div></td>
+          <td>{{ e.modelo.nome|default:"texto livre" }}</td>
+          <td>{{ e.usuario.nome_exibicao|default:"—" }}</td>
+          <td style="max-width:420px"><div class="truncate" title="{{ e.texto }}">{{ e.texto }}</div></td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="5">{% include "componentes/_vazio.html" with icone="message-circle" titulo="Nenhuma mensagem aberta ainda" texto="Quando você enviar uma mensagem pelo sistema, ela aparece aqui." %}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% include "componentes/_paginacao.html" %}
+</section>
+{% endblock %}

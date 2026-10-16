@@ -1,0 +1,90 @@
+<div data-gaveta-titulo="{{ titulo }}" data-gaveta-sub="{{ sub }}" data-gaveta-pagina="{{ pagina }}">
+{% if modo == "vinculos" %}
+  {% for v in itens %}
+  <article class="item-pessoa" id="v{{ v.pk }}" {% if destaque == v.pk %}style="background:var(--brand-wash);margin:0 -22px;padding-left:22px;padding-right:22px"{% endif %}>
+    <span class="avatar">{{ v.candidato.nome|iniciais }}</span>
+    <div class="meio">
+      <div class="linha">
+        {% if eh_visualizador %}<span class="nome">{{ v.candidato.nome|nome_para:request.user }}</span>
+        {% else %}<a class="nome" href="{{ v.get_absolute_url }}">{{ v.candidato.nome }}</a>{% endif %}
+        <span class="badge badge-{{ v.sit_tom }}">{{ v.sit_rotulo }}</span>
+      </div>
+      <div class="detalhe">{{ v.vaga.nome }} · chamado em {{ v.data_chamada|date:"d/m/Y" }} · até {{ v.data_fim|date:"d/m/Y" }}</div>
+      {% include "componentes/_medidor.html" with extra="fino" %}
+      <div class="meses" style="margin-top:8px">
+        {% for c in v.chips %}
+          <span class="mes-chip {{ c.estado }}" data-dica="{{ c.descricao }}">{{ c.rotulo }}</span>
+        {% endfor %}
+      </div>
+    </div>
+    <div class="lado">
+      <strong class="prazo-etiqueta {% if v.sit == 'vencido' %}vencido{% elif v.sit == 'vencendo' %}aviso{% endif %}">{{ v.dias|dias_texto }}</strong>
+      {% if pode_recrutar %}
+        <a class="btn btn-sm btn-whats" href="{% url 'mensagens:compor' %}?candidato={{ v.candidato_id }}&vinculo={{ v.pk }}&categoria=lembrete">{% icone "message-circle" %} WhatsApp</a>
+      {% endif %}
+    </div>
+  </article>
+  {% empty %}
+    {% include "componentes/_vazio.html" with icone="user-check" titulo=vazio %}
+  {% endfor %}
+
+{% elif modo == "candidatos" %}
+  {% if vaga_chamar and pode_recrutar %}
+    <div class="alerta alerta-info" style="margin-top:14px">{% icone "info" %}<div>Use <strong>Chamar</strong> para vincular o candidato a {{ vaga_chamar.nome }}. O prazo de {{ config.prazo_texto }} começa a contar a partir do mês da chamada.</div></div>
+  {% endif %}
+  {% for c in itens %}
+  <article class="item-pessoa">
+    <span class="avatar">{{ c.nome|iniciais }}</span>
+    <div class="meio">
+      <div class="linha">
+        <a class="nome" href="{{ c.get_absolute_url }}">{{ c.nome }}</a>
+        <span class="badge badge-{{ c.tom }}">{{ c.get_status_display }}</span>
+      </div>
+      <div class="detalhe">{{ c.territorio|default:"Endereço não informado" }}{% if c.distancia_km is not None %} · {{ c.distancia_km }} km da unidade{% endif %}</div>
+    </div>
+    <div class="lado">
+      {% if vaga_chamar %}<a class="btn btn-sm btn-primary" href="{% url 'vinculos:chamar' %}?candidato={{ c.pk }}&vaga={{ vaga_chamar.pk }}">Chamar</a>{% endif %}
+      <a class="btn btn-sm btn-whats" href="{% url 'mensagens:compor' %}?candidato={{ c.pk }}">{% icone "message-circle" %} WhatsApp</a>
+    </div>
+  </article>
+  {% empty %}
+    {% include "componentes/_vazio.html" with icone="users" titulo=vazio %}
+  {% endfor %}
+
+{% elif modo == "vagas_livres" %}
+  {% for l in itens %}
+  <article class="item-pessoa" style="grid-template-columns:minmax(0,1fr) auto">
+    <div class="meio">
+      <div class="linha"><span class="nome">{{ l.vaga.nome }}</span></div>
+      <div class="detalhe">{{ l.livres }} {% if l.livres == 1 %}vaga livre{% else %}vagas livres{% endif %} de {{ l.vaga.quantidade }}{% if l.vaga.setor %} · {{ l.vaga.setor }}{% endif %}</div>
+    </div>
+    <div class="lado"><a class="btn btn-sm" href="{{ l.url_livres }}" data-gaveta>Quem pode ser chamado</a></div>
+  </article>
+  {% empty %}
+    {% include "componentes/_vazio.html" with icone="check" titulo=vazio %}
+  {% endfor %}
+
+{% elif modo == "checkins" %}
+  {% for p in itens %}
+  <article class="item-pessoa">
+    <span class="avatar">{{ p.vinculo.candidato.nome|iniciais }}</span>
+    <div class="meio">
+      <div class="linha">
+        <span class="nome">{{ p.vinculo.candidato.nome|nome_para:request.user }}</span>
+        {% if p.atrasado %}<span class="badge badge-bad">{% icone "triangle-alert" %} mês encerrado</span>{% else %}<span class="badge badge-warn">{% icone "clock" %} mês em andamento</span>{% endif %}
+      </div>
+      <div class="detalhe">{{ p.vinculo.vaga.nome }} · {{ p.competencia|mes_longo }}</div>
+    </div>
+    <div class="lado">
+      {% if pode_checkin %}
+        <button class="btn btn-sm btn-primary" type="button" data-abrir-dialogo="dlg-checkin" data-campo-vinculo="{{ p.vinculo.pk }}" data-campo-competencia="{{ p.competencia|date:'Y-m-d' }}" data-texto-pessoa="{{ p.vinculo.candidato.nome }}" data-texto-mes="{{ p.competencia|mes_longo }}" data-campo-resultado="" data-campo-observacao="">Registrar</button>
+      {% endif %}
+    </div>
+  </article>
+  {% empty %}
+    {% include "componentes/_vazio.html" with icone="clipboard-check" titulo=vazio %}
+  {% endfor %}
+{% endif %}
+
+{% if total_itens >= 100 %}<p class="small muted" style="padding:14px 0">Mostrando os 100 primeiros. Use “Abrir em página inteira” para ver todos e filtrar.</p>{% endif %}
+</div>

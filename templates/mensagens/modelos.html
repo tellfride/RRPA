@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block titulo %}Mensagens de WhatsApp{% endblock %}
+{% block conteudo %}
+<div class="page-head">
+  <div>
+    <h1>Mensagens de WhatsApp</h1>
+    <p class="sub">Modelos prontos para enviar ao candidato. O sistema preenche nome, vaga, datas e o link de cadastro; você confere e envia pelo WhatsApp.</p>
+  </div>
+  <div class="page-actions">
+    {% if RRPA_WHATSAPP_API %}<a class="btn" href="{% url 'mensagens:disparos' %}">{% icone "send" %} Disparos</a>{% endif %}
+    <a class="btn" href="{% url 'mensagens:historico' %}">{% icone "history" %} Mensagens enviadas</a>
+    <a class="btn btn-primary" href="{% url 'mensagens:modelo_novo' %}">{% icone "plus" %} Novo modelo</a>
+  </div>
+</div>
+
+{% for categoria, lista in grupos.items %}
+<section class="secao">
+  <h2 class="secao-titulo">{{ categoria }}</h2>
+  <div class="grid grid-2">
+    {% for m in lista %}
+    <article class="panel" {% if not m.ativo %}style="opacity:.7"{% endif %}>
+      <div class="panel-head">
+        <div><h3 style="font-size:16px">{{ m.nome }}</h3>{% if not m.ativo %}<span class="badge">Desativado</span>{% endif %}</div>
+        <div class="btn-grupo">
+          <a class="btn btn-sm" href="{% url 'mensagens:modelo_editar' m.pk %}">{% icone "pencil" %} Editar</a>
+          <form method="post" action="{% url 'mensagens:modelo_alternar' m.pk %}">{% csrf_token %}<button class="btn btn-sm btn-quiet" type="submit">{% if m.ativo %}Desativar{% else %}Ativar{% endif %}</button></form>
+        </div>
+      </div>
+      <div class="panel-body">
+        <div class="balao">{{ m.exemplo }}</div>
+        <p class="small muted" style="margin-top:8px">Exemplo com dados fictícios.</p>
+      </div>
+    </article>
+    {% endfor %}
+  </div>
+</section>
+{% empty %}
+<section class="panel"><div class="panel-body">{% include "componentes/_vazio.html" with icone="message-circle" titulo="Nenhum modelo ainda" texto="Crie o primeiro modelo de mensagem." acao_url="/mensagens/novo/" acao_texto="Novo modelo" %}</div></section>
+{% endfor %}
+
+<section class="alerta alerta-info secao">
+  {% icone "info" %}
+  <div>As mensagens abrem no seu WhatsApp (celular ou WhatsApp Web) já escritas. Você revisa e toca em enviar — assim cada envio sai do número da unidade e fica registrado em “Mensagens enviadas”.
+  {% if RRPA_WHATSAPP_API %}Para várias pessoas, marque os candidatos e use “Enviar mensagem”: se o administrador conectou o WhatsApp, o sistema também pode disparar tudo sozinho e acompanhar em “Disparos”.{% endif %}</div>
+</section>
+{% endblock %}

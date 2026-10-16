@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block titulo %}Disparos de WhatsApp{% endblock %}
+{% block conteudo %}
+<div class="page-head">
+  <div>
+    <p class="crumbs"><a href="{% url 'mensagens:modelos' %}">Mensagens de WhatsApp</a> / Disparos</p>
+    <h1>Disparos de WhatsApp</h1>
+    <p class="sub">Envios automáticos feitos pela API do WhatsApp. Para criar um, marque os candidatos na lista e use “Enviar mensagem”.</p>
+  </div>
+  <div class="page-actions">
+    <a class="btn" href="{% url 'mensagens:historico' %}">{% icone "history" %} Mensagens abertas no WhatsApp</a>
+    <a class="btn btn-primary" href="{% url 'candidatos:lista' %}">{% icone "users" %} Escolher candidatos</a>
+  </div>
+</div>
+
+<section class="panel">
+  <div class="tabela-wrap">
+    <table class="tabela">
+      <thead><tr><th>Disparo</th><th>Criado por</th><th class="num">Pessoas</th><th class="num">Enviadas</th><th class="num">Entregues</th><th class="num">Lidas</th><th class="num">Falhas</th><th>Situação</th></tr></thead>
+      <tbody>
+      {% for d in disparos %}
+        <tr>
+          <td><a class="nome" href="{% url 'mensagens:disparo' d.pk %}">{{ d.nome }}</a><div class="sub muted small">{{ d.criado_em|date:"d/m/Y H:i" }} · {{ d.provedor_rotulo }}</div></td>
+          <td>{{ d.criado_por.nome_exibicao|default:"—" }}</td>
+          <td class="num">{{ d.total }}</td><td class="num">{{ d.enviadas }}</td><td class="num">{{ d.entregues }}</td><td class="num">{{ d.lidas }}</td>
+          <td class="num">{% if d.falhas %}<span class="badge badge-bad">{{ d.falhas }}</span>{% else %}0{% endif %}</td>
+          <td><span class="badge badge-{{ d.tom }}">{{ d.get_status_display }}</span></td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="8">{% include "componentes/_vazio.html" with icone="send" titulo="Nenhum disparo ainda" texto="Marque candidatos na lista, escolha “Enviar mensagem” e use o disparo automático." acao_url="/candidatos/" acao_texto="Ir para os candidatos" %}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% include "componentes/_paginacao.html" %}
+</section>
+{% endblock %}

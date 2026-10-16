@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block titulo %}{% if object %}Editar usuário{% else %}Novo usuário{% endif %}{% endblock %}
+{% block conteudo %}
+<div class="page-head">
+  <div>
+    <p class="crumbs"><a href="{% url 'contas:usuarios' %}">Usuários</a> / {% if object %}{{ object.nome_exibicao }}{% else %}Novo{% endif %}</p>
+    <h1>{% if object %}Editar usuário{% else %}Novo usuário{% endif %}</h1>
+  </div>
+</div>
+<form method="post" class="panel" novalidate data-uma-vez>
+  {% csrf_token %}
+  <div class="panel-body">
+    {% include "componentes/_form_erros.html" %}
+    <div class="form-grid">
+      <div class="col-6">{% include "componentes/_campo.html" with campo=form.first_name %}</div>
+      <div class="col-6">{% include "componentes/_campo.html" with campo=form.last_name %}</div>
+      <div class="col-6">{% include "componentes/_campo.html" with campo=form.username %}</div>
+      <div class="col-6">{% include "componentes/_campo.html" with campo=form.email %}</div>
+      <div class="col-6">{% include "componentes/_campo.html" with campo=form.telefone %}</div>
+      <div class="col-6">{% include "componentes/_campo.html" with campo=form.perfil %}</div>
+      <div class="col-6">{% include "componentes/_campo.html" with campo=form.senha %}</div>
+      <div class="col-6">{% include "componentes/_campo.html" with campo=form.is_active %}</div>
+    </div>
+    <div class="form-acoes" style="margin-top:20px">
+      <button class="btn btn-primary" type="submit">Salvar</button>
+      <a class="btn" href="{% url 'contas:usuarios' %}">Cancelar</a>
+    </div>
+  </div>
+</form>
+{% endblock %}

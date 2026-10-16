@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% block titulo %}{{ pessoa.nome }} · {{ v.vaga.nome }}{% endblock %}
+{% block conteudo %}
+<div class="page-head">
+  <div class="perfil-topo">
+    <span class="avatar avatar-lg">{{ pessoa.nome|iniciais }}</span>
+    <div>
+      <p class="crumbs"><a href="{% url 'vinculos:lista' %}">Colaboradores em vaga</a> / {{ v.vaga.nome }}</p>
+      <h1>{{ pessoa.nome }}</h1>
+      <p class="sub"><a href="{% url 'vagas:detalhe' v.vaga.pk %}">{{ v.vaga.nome }}</a> · <span class="badge badge-{{ v.sit_tom }}">{{ v.sit_rotulo }}</span></p>
+    </div>
+  </div>
+  <div class="page-actions">
+    {% if pode_recrutar %}
+      <a class="btn" href="{{ pessoa.get_absolute_url }}">Ver cadastro</a>
+      {% if v.status == "ativo" %}<a class="btn btn-whats" href="{% url 'mensagens:compor' %}?candidato={{ pessoa.pk }}&vinculo={{ v.pk }}&categoria=lembrete">{% icone "message-circle" %} Lembrete de prazo</a>{% endif %}
+      {% if v.status == "ativo" %}<button class="btn btn-danger" type="button" data-abrir-dialogo="dlg-encerrar">Encerrar vínculo</button>{% endif %}
+    {% endif %}
+  </div>
+</div>
+
+{% if v.sit == "vencido" %}
+<div class="alerta alerta-erro">{% icone "triangle-alert" %}<div><strong>O prazo de {{ config.prazo_texto }} terminou em {{ v.data_fim|date:"d/m/Y" }}.</strong> {% if pode_recrutar %}Registre a saída para liberar a vaga.{% else %}A equipe de recrutamento precisa registrar a saída para liberar a vaga.{% endif %}</div></div>
+{% elif v.sit == "vencendo" %}
+<div class="alerta alerta-aviso">{% icone "clock" %}<div><strong>O prazo termina {{ v.dias|dias_texto }} ({{ v.data_fim|date:"d/m/Y" }}).</strong> Depois dessa data o colaborador não pode permanecer na vaga.</div></div>
+{% endif %}
+
+<div class="grid grid-60-40">
+  <section class="panel">
+    <div class="panel-head"><div><h2>Prazo na vaga</h2><p class="sub">Contado a partir do mês da chamada, por até {{ config.prazo_texto }}.</p></div></div>
+    <div class="panel-body stack" style="--gap:16px">
+      {% if v.status == "ativo" %}
+        <div>
+          <div class="row-between" style="margin-bottom:8px"><strong style="font-size:20px">{{ v.dias|dias_texto|capfirst }}</strong><span class="muted">termina em {{ v.data_fim|date:"d/m/Y" }}</span></div>
+          {% include "componentes/_medidor.html" %}
+        </div>
+      {% endif %}
+      <dl class="ficha">
+        <dt>Chamado em</dt><dd>{{ v.data_chamada|date:"d/m/Y" }}{% if v.criado_por %} por {{ v.criado_por.nome_exibicao }}{% endif %}</dd>
+        <dt>Período contado desde</dt><dd>{{ v.inicio_periodo|date:"d/m/Y" }}</dd>
+        <dt>Permanência até</dt><dd>{{ v.data_fim|date:"d/m/Y" }}</dd>
+        <dt>Vaga</dt><dd>{{ v.vaga.nome }}{% if v.vaga.setor %} · {{ v.vaga.setor }}{% endif %}</dd>
+        {% if pode_recrutar %}<dt>Telefone</dt><dd class="num">{{ pessoa.telefone_formatado }}</dd>{% endif %}
+        <dt>Mora em</dt><dd>{{ pessoa.territorio|default:"Não informado" }}{% if pessoa.distancia_km is not None %} · {{ pessoa.distancia_km }} km da unidade{% endif %}</dd>
+        {% if v.status != "ativo" %}
+          <dt>Encerrado em</dt><dd>{{ v.encerrado_em|date:"d/m/Y" }}{% if v.encerrado_por %} por {{ v.encerrado_por.nome_exibicao }}{% endif %}</dd>
+          <dt>Motivo</dt><dd>{{ v.get_motivo_encerramento_display }}{% if v.observacao_encerramento %}<div class="muted small">{{ v.observacao_encerramento }}</div>{% endif %}</dd>
+        {% endif %}
+        {% if v.observacoes %}<dt>Observações</dt><dd style="white-space:pre-line">{{ v.observacoes }}</dd>{% endif %}
+      </dl>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head"><div><h2>Check-in do setor</h2><p class="sub">O responsável confirma, mês a mês, se o RPA foi cumprido.</p></div></div>
+    <div class="panel-body">
+      <ul class="stack" style="--gap:10px;list-style:none;padding:0;margin:0">
+        {% for c in chips_detalhe %}
+        <li class="row" style="flex-wrap:nowrap;align-items:flex-start;gap:12px">
+          <div style="min-width:84px">
+            {% if pode_checkin and c.estado != "futuro" and c.estado != "dispensado" %}
+              <button type="button" class="mes-chip {{ c.estado }}" data-abrir-dialogo="dlg-checkin" data-campo-vinculo="{{ v.pk }}" data-campo-competencia="{{ c.competencia|date:'Y-m-d' }}" data-texto-pessoa="{{ pessoa.nome }}" data-texto-mes="{{ c.competencia|mes_longo }}" data-campo-resultado="{{ c.checkin.resultado|default:'' }}" data-campo-observacao="{{ c.checkin.observacao|default:'' }}">{{ c.rotulo }}</button>
+            {% else %}<span class="mes-chip {{ c.estado }}">{{ c.rotulo }}</span>{% endif %}
+          </div>
+          <div class="grow small">
+            <strong>{{ c.descricao }}</strong>
+            {% if c.checkin %}
+              <div class="muted">por {{ c.responsavel.nome_exibicao|default:"—" }} em {{ c.checkin.registrado_em|date:"d/m/Y" }}</div>
+              {% if c.checkin.observacao %}<div style="margin-top:2px">“{{ c.checkin.observacao }}”</div>{% endif %}
+            {% endif %}
+          </div>
+        </li>
+        {% endfor %}
+      </ul>
+      <p class="small muted" style="margin-top:14px">Responsáveis por esta vaga: {% for r in responsaveis %}{{ r.nome_exibicao }}{% if not forloop.last %}, {% endif %}{% empty %}nenhum definido{% endfor %}.</p>
+    </div>
+  </section>
+</div>
+
+{% if pode_checkin %}{% include "vinculos/_dialogo_checkin.html" %}{% endif %}
+
+{% if pode_recrutar and v.status == "ativo" %}
+<dialog class="dialogo" id="dlg-encerrar" aria-labelledby="dlg-encerrar-titulo">
+  <form method="post" action="{% url 'vinculos:encerrar' v.pk %}" data-uma-vez>
+    {% csrf_token %}
+    <div class="dialogo-corpo">
+      <h2 id="dlg-encerrar-titulo">Encerrar o vínculo de {{ pessoa.nome|primeiro_nome }}</h2>
+      <p class="muted">A vaga será liberada para uma nova chamada.</p>
+      <fieldset class="escolhas" style="margin-top:14px">
+        {% for valor, rotulo in motivos %}
+          <label class="escolha"><input type="radio" name="motivo" value="{{ valor }}" {% if forloop.first %}checked{% endif %} required> {{ rotulo }}</label>
+        {% endfor %}
+      </fieldset>
+      <div class="field" style="margin-top:14px"><label for="enc-obs">Observação (opcional)</label><textarea id="enc-obs" name="observacao" class="textarea" rows="2"></textarea></div>
+    </div>
+    <div class="dialogo-rodape"><button type="button" class="btn" data-fechar-dialogo>Cancelar</button><button type="submit" class="btn btn-danger">Encerrar vínculo</button></div>
+  </form>
+</dialog>
+{% endif %}
+{% endblock %}

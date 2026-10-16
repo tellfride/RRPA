@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block titulo %}Enviar mensagem{% endblock %}
+{% block conteudo %}
+<div class="page-head">
+  <div>
+    <p class="crumbs">{% if candidato %}<a href="{{ candidato.get_absolute_url }}">{{ candidato.nome }}</a>{% else %}<a href="{% url 'links:lista' %}">Links de cadastro</a>{% endif %} / WhatsApp</p>
+    <h1>Mensagem para {{ nome|primeiro_nome|default:nome }}</h1>
+    <p class="sub">{{ telefone_formatado|default:"Sem telefone" }}{% if vinculo %} · {{ vinculo.vaga.nome }}{% endif %}</p>
+  </div>
+</div>
+
+{% if recusou_whatsapp %}
+<div class="alerta alerta-erro">{% icone "ban" %}<div><strong>{{ nome|primeiro_nome }} pediu para não receber mensagens por WhatsApp.</strong> O envio está bloqueado. Se isso mudou, registre a nova autorização na <a href="{{ candidato.get_absolute_url }}">ficha do candidato</a>.</div></div>
+{% elif not telefone_ok %}
+<div class="alerta alerta-erro">{% icone "circle-alert" %}<div>Este telefone não parece válido para WhatsApp. {% if candidato %}<a href="{% url 'candidatos:editar' candidato.pk %}">Corrigir o cadastro</a>.{% endif %}</div></div>
+{% endif %}
+
+<div class="grid grid-60-40">
+  <section class="panel">
+    <div class="panel-body stack" style="--gap:16px">
+      <form method="get" data-autoenviar>
+        {% if candidato %}<input type="hidden" name="candidato" value="{{ candidato.pk }}">{% endif %}
+        {% if link %}<input type="hidden" name="link" value="{{ link.pk }}">{% endif %}
+        {% if vinculo %}<input type="hidden" name="vinculo" value="{{ vinculo.pk }}">{% endif %}
+        <div class="field">
+          <label for="modelo">Modelo de mensagem</label>
+          <select id="modelo" name="modelo" class="select">
+            {% for m in modelos %}<option value="{{ m.pk }}" {% if modelo and m.pk == modelo.pk %}selected{% endif %}>{{ m.get_categoria_display }} — {{ m.nome }}</option>{% endfor %}
+          </select>
+        </div>
+      </form>
+
+      {% if faltando %}
+      <div class="alerta alerta-aviso" style="margin:0">
+        {% icone "triangle-alert" %}
+        <div>Este modelo usa campos sem valor agora:
+          {% for c in faltando %}<strong>{{ c|chave }}</strong>{% if not forloop.last %}, {% endif %}{% endfor %}.
+          Preencha no texto abaixo antes de enviar{% if "link_cadastro" in faltando %}; para o link, gere um convite em <a href="{% url 'links:novo' %}">Links de cadastro</a>{% endif %}.
+        </div>
+      </div>
+      {% endif %}
+
+      <div class="field">
+        <label for="texto">Mensagem (você pode editar)</label>
+        <textarea id="texto" class="textarea" rows="9" maxlength="2000" data-espelhar="#espelho">{{ texto }}</textarea>
+      </div>
+
+      <div class="btn-grupo">
+        <button class="btn btn-whats" type="button" data-whatsapp data-texto-de="#texto" data-telefone="{{ whatsapp }}"
+                data-registrar="{% url 'mensagens:registrar' %}" {% if candidato %}data-reg-candidato="{{ candidato.pk }}"{% endif %}
+                {% if link %}data-reg-link="{{ link.pk }}"{% endif %} {% if modelo %}data-reg-modelo="{{ modelo.pk }}"{% endif %}
+                {% if not telefone_ok or recusou_whatsapp %}disabled{% endif %}>{% icone "message-circle" %} Abrir no WhatsApp</button>
+        <button class="btn" type="button" data-copiar="#texto" data-copiado="Mensagem copiada!">{% icone "copy" %} Copiar mensagem</button>
+        <a class="btn btn-quiet" href="{% if candidato %}{{ candidato.get_absolute_url }}{% else %}{% url 'links:lista' %}{% endif %}">Voltar</a>
+      </div>
+      <p class="small muted">O WhatsApp abre em outra aba com a mensagem escrita. Confira e toque em enviar.</p>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head"><div><h2>Como a pessoa vai ver</h2></div></div>
+    <div class="panel-body">
+      <div class="balao" id="espelho" aria-live="polite">{{ texto }}</div>
+      {% if link %}
+      <div class="small muted" style="margin-top:14px">
+        Convite fornecido por <strong>{{ link.criado_por.nome_exibicao }}</strong>{% if link.expira_em %}, válido até {{ link.expira_em|date:"d/m/Y" }}{% endif %}. Quem se cadastrar por ele fica ligado a essa pessoa.
+      </div>
+      {% endif %}
+    </div>
+  </section>
+</div>
+{% endblock %}

@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block titulo %}Atividades{% endblock %}
+{% block conteudo %}
+<div class="page-head"><div><h1>Atividades</h1><p class="sub">Registro de quem fez o quê: cadastros, aprovações, chamadas, check-ins e envios.</p></div></div>
+<form method="get" class="filtros" data-autoenviar>
+  <div class="busca">{% icone "search" %}<input class="input" type="search" name="q" value="{{ q }}" placeholder="Buscar na descrição" aria-label="Buscar atividade"></div>
+  <select class="select" name="grupo" aria-label="Tipo de atividade">
+    <option value="">Todos os tipos</option>
+    {% for valor, rotulo in grupos %}<option value="{{ valor }}" {% if valor == grupo %}selected{% endif %}>{{ rotulo }}</option>{% endfor %}
+  </select>
+  <button class="btn" type="submit">Filtrar</button>
+</form>
+<section class="panel">
+  <div class="tabela-wrap">
+    <table class="tabela">
+      <thead><tr><th>Quando</th><th>Quem</th><th>O que aconteceu</th><th>IP</th></tr></thead>
+      <tbody>
+      {% for a in atividades %}
+        <tr>
+          <td class="nowrap">{{ a.criado_em|date:"d/m/Y H:i" }}</td>
+          <td>{{ a.usuario.nome_exibicao|default:"Sistema / candidato" }}</td>
+          <td>{{ a.descricao }}</td>
+          <td class="muted small num">{{ a.ip|default:"—" }}</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="4">{% include "componentes/_vazio.html" with icone="history" titulo="Nenhuma atividade encontrada" %}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% include "componentes/_paginacao.html" %}
+</section>
+{% endblock %}

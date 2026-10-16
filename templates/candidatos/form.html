@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block titulo %}{% if object %}Editar candidato{% else %}Novo candidato{% endif %}{% endblock %}
+{% block conteudo %}
+<div class="page-head">
+  <div>
+    <p class="crumbs"><a href="{% url 'candidatos:lista' %}">Candidatos</a> / {% if object %}{{ object.nome }}{% else %}Novo{% endif %}</p>
+    <h1>{% if object %}Editar candidato{% else %}Novo candidato{% endif %}</h1>
+  </div>
+</div>
+<form method="post" class="panel" novalidate data-uma-vez>
+  {% csrf_token %}
+  <div class="panel-body">
+    {% include "componentes/_form_erros.html" %}
+    <h2 class="secao-titulo">Dados pessoais</h2>
+    <div class="form-grid">
+      <div class="col-6">{% include "componentes/_campo.html" with campo=form.nome %}</div>
+      <div class="col-3">{% include "componentes/_campo.html" with campo=form.cpf %}</div>
+      <div class="col-3">{% include "componentes/_campo.html" with campo=form.telefone %}</div>
+      <div class="col-6">{% include "componentes/_campo.html" with campo=form.email %}</div>
+    </div>
+    <h2 class="secao-titulo" style="margin-top:26px">Endereço</h2>
+    <div class="form-grid">
+      <div class="col-3">{% include "componentes/_campo.html" with campo=form.cep %}</div>
+      <div class="col-9" style="grid-column:span 9"><p class="small muted cep-status" data-cep-status aria-live="polite"></p></div>
+      <div class="col-6">{% include "componentes/_campo.html" with campo=form.logradouro %}</div>
+      <div class="col-2">{% include "componentes/_campo.html" with campo=form.numero %}</div>
+      <div class="col-4">{% include "componentes/_campo.html" with campo=form.complemento %}</div>
+      <div class="col-4">{% include "componentes/_campo.html" with campo=form.bairro %}</div>
+      <div class="col-6">{% include "componentes/_campo.html" with campo=form.cidade %}</div>
+      <div class="col-2">{% include "componentes/_campo.html" with campo=form.uf %}</div>
+    </div>
+    <h2 class="secao-titulo" style="margin-top:26px">Vaga</h2>
+    <div class="form-grid">
+      <div class="col-12">{% include "componentes/_campo.html" with campo=form.vagas_interesse %}</div>
+      <div class="col-12">{% include "componentes/_campo.html" with campo=form.observacoes %}</div>
+    </div>
+    <div class="form-acoes" style="margin-top:22px">
+      <button class="btn btn-primary" type="submit">Salvar candidato</button>
+      <a class="btn" href="{% if object %}{{ object.get_absolute_url }}{% else %}{% url 'candidatos:lista' %}{% endif %}">Cancelar</a>
+    </div>
+  </div>
+</form>
+{% endblock %}

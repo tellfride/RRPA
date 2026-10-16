@@ -1,0 +1,14 @@
+{% if page_obj and page_obj.paginator.num_pages > 1 %}
+<nav class="paginacao" aria-label="Paginação">
+  <span class="muted small">{{ page_obj.start_index }}–{{ page_obj.end_index }} de {{ page_obj.paginator.count }}</span>
+  <span class="links">
+    {% if page_obj.has_previous %}
+      <a class="btn btn-sm" href="?{% qs page=page_obj.previous_page_number %}">{% icone "chevron-left" %} Anterior</a>
+    {% endif %}
+    <span class="btn btn-sm btn-quiet" aria-current="page">Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}</span>
+    {% if page_obj.has_next %}
+      <a class="btn btn-sm" href="?{% qs page=page_obj.next_page_number %}">Próxima {% icone "chevron-right" %}</a>
+    {% endif %}
+  </span>
+</nav>
+{% endif %}

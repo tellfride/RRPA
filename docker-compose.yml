@@ -1,0 +1,71 @@
+# R-RPA — suba tudo com:  docker compose up --build
+# Configurações ficam no arquivo .env (copie de .env.example). Sem .env, usa padrões de teste.
+name: rrpa
+
+x-app: &app
+  build: .
+  image: rrpa:latest
+  restart: unless-stopped
+  env_file:
+    - path: .env
+      required: false
+
+x-env: &env
+  POSTGRES_HOST: db
+  POSTGRES_DB: ${POSTGRES_DB:-rrpa}
+  POSTGRES_USER: ${POSTGRES_USER:-rrpa}
+  POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-rrpa_dev_password}
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-rrpa}
+      POSTGRES_USER: ${POSTGRES_USER:-rrpa}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-rrpa_dev_password}
+    volumes:
+      - rrpa_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  web:
+    <<: *app
+    environment:
+      <<: *env
+    ports:
+      - "${RRPA_PORTA:-8765}:8000"
+    volumes:
+      - rrpa_data:/app/data
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/saude/', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+
+  # Segundo plano: localiza no mapa os candidatos cadastrados por CEP e, só com RRPA_WHATSAPP_API=1,
+  # envia as mensagens dos disparos automáticos de WhatsApp (no ritmo da conexão, com novas tentativas).
+  worker:
+    <<: *app
+    command: ["python", "manage.py", "disparar", "--continuo", "--localizar"]
+    environment:
+      <<: *env
+      RRPA_PREPARAR: "0"
+    volumes:
+      - rrpa_data:/app/data
+    depends_on:
+      db:
+        condition: service_healthy
+      web:
+        condition: service_healthy
+
+volumes:
+  rrpa_pgdata:
+  rrpa_data:

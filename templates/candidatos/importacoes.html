@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block titulo %}Importações{% endblock %}
+{% block conteudo %}
+<div class="page-head">
+  <div><h1>Importações de planilhas</h1><p class="sub">Histórico dos arquivos enviados.</p></div>
+  <div class="page-actions"><a class="btn btn-primary" href="{% url 'candidatos:importar' %}">{% icone "upload" %} Importar planilha</a></div>
+</div>
+<section class="panel">
+  <div class="tabela-wrap">
+    <table class="tabela">
+      <thead><tr><th>Arquivo</th><th>Vaga</th><th>Enviado por</th><th class="num">Linhas</th><th class="num">Novos</th><th class="num">Problemas</th><th>Situação</th><th></th></tr></thead>
+      <tbody>
+      {% for i in importacoes %}
+        <tr>
+          <td>{{ i.nome_arquivo }}<div class="sub muted small">{{ i.criado_em|date:"d/m/Y H:i" }}</div></td>
+          <td>{{ i.vaga.nome|default:"—" }}</td>
+          <td>{{ i.usuario.nome_exibicao|default:"—" }}</td>
+          <td class="num">{{ i.total }}</td>
+          <td class="num">{% if i.status == "confirmada" %}{{ i.criadas }}{% else %}{{ i.novas }}{% endif %}</td>
+          <td class="num">{{ i.erros }}</td>
+          <td><span class="badge {% if i.status == 'confirmada' %}badge-good{% elif i.status == 'previa' %}badge-warn{% endif %}">{{ i.get_status_display }}</span></td>
+          <td class="right"><a class="btn btn-sm" href="{% url 'candidatos:previa' i.pk %}">Abrir</a></td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="8">{% include "componentes/_vazio.html" with icone="file-spreadsheet" titulo="Nenhuma planilha importada" texto="Baixe o modelo de uma vaga, preencha e envie." acao_url="/candidatos/importar/" acao_texto="Importar planilha" %}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% include "componentes/_paginacao.html" %}
+</section>
+{% endblock %}

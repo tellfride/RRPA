@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+{% block titulo %}{{ vaga.nome }}{% endblock %}
+{% block conteudo %}
+<div class="page-head">
+  <div>
+    <p class="crumbs"><a href="{% url 'vagas:lista' %}">Vagas</a> / {{ vaga.nome }}</p>
+    <h1>{{ vaga.nome }} {% if not vaga.ativa %}<span class="badge" style="vertical-align:middle">Inativa</span>{% endif %}</h1>
+    {% if vaga.setor or vaga.descricao %}<p class="sub">{% if vaga.setor %}{{ vaga.setor }}{% endif %}{% if vaga.setor and vaga.descricao %} · {% endif %}{{ vaga.descricao }}</p>{% endif %}
+  </div>
+  <div class="page-actions">
+    {% if pode_recrutar %}
+      <a class="btn" href="{% url 'vagas:modelo' vaga.pk %}">{% icone "file-spreadsheet" %} Baixar modelo (.xlsx)</a>
+      <a class="btn" href="{% url 'candidatos:importar_vaga' vaga.pk %}">{% icone "upload" %} Importar planilha</a>
+    {% endif %}
+    {% if not eh_visualizador %}<a class="btn" href="{% url 'vagas:exportar' vaga.pk %}">{% icone "download" %} Exportar</a>{% endif %}
+    {% if eh_admin %}<a class="btn" href="{% url 'vagas:editar' vaga.pk %}">{% icone "pencil" %} Editar</a>{% endif %}
+  </div>
+</div>
+
+<div class="estatisticas">
+  <div class="estatistica"><b class="num">{{ vaga.quantidade }}</b><span>vagas no total</span></div>
+  <a class="estatistica" href="{{ linha.url_ocupantes }}" data-gaveta><b class="num">{{ linha.n_ocupadas }}</b><span>ocupadas</span></a>
+  <a class="estatistica" href="{{ linha.url_livres }}" data-gaveta><b class="num">{{ linha.livres }}</b><span>disponíveis</span></a>
+  <a class="estatistica" href="{{ linha.url_vencendo }}" data-gaveta><b class="num">{{ linha.n_vencendo }}</b><span>vencem em {{ config.dias_alerta }} dias</span></a>
+  <div class="estatistica"><b class="num" {% if linha.n_vencidos %}style="color:var(--bad-ink)"{% endif %}>{{ linha.n_vencidos }}</b><span>com prazo vencido</span></div>
+  <a class="estatistica" href="{% url 'painel:detalhe' %}?tipo=checkins&vaga={{ vaga.pk }}" data-gaveta><b class="num">{{ pendencias }}</b><span>check-ins pendentes</span></a>
+</div>
+
+<section class="panel secao">
+  <div class="panel-body" style="display:grid;gap:14px">
+    {% include "componentes/_pips.html" %}
+    <div class="row small muted" style="gap:20px">
+      <span><i class="pip-legenda ocupada"></i> Ocupada</span>
+      <span><i class="pip-legenda vencendo"></i> Vence em até {{ config.dias_alerta }} dias</span>
+      <span><i class="pip-legenda livre"></i> Disponível</span>
+      <span><i class="pip-legenda vencido"></i> Prazo vencido</span>
+    </div>
+    <div class="small">
+      <strong>Responsáveis pelo check-in:</strong>
+      {% for r in vaga.responsaveis.all %}{{ r.nome_exibicao }}{% if not forloop.last %}, {% endif %}{% empty %}<span class="muted">nenhum definido.{% if eh_admin %} <a href="{% url 'vagas:editar' vaga.pk %}">Escolher responsáveis</a>{% endif %}</span>{% endfor %}
+    </div>
+  </div>
+</section>
+
+<div class="secao">
+  <nav class="abas" aria-label="Seções da vaga">
+    <a href="?aba=ocupantes" {% if aba == "ocupantes" %}aria-current="page"{% endif %}>Colaboradores <span class="badge">{{ contagens.ocupantes }}</span></a>
+    {% if pode_recrutar %}<a href="?aba=candidatos" {% if aba == "candidatos" %}aria-current="page"{% endif %}>Candidatos desta vaga <span class="badge">{{ contagens.candidatos }}</span></a>{% endif %}
+    <a href="?aba=historico" {% if aba == "historico" %}aria-current="page"{% endif %}>Histórico <span class="badge">{{ contagens.historico }}</span></a>
+  </nav>
+
+  {% if aba == "candidatos" %}
+  <section class="panel">
+    <div class="tabela-wrap">
+      <table class="tabela">
+        <thead><tr><th>Candidato</th><th>Situação</th><th>Onde mora</th><th class="num">Distância</th><th></th></tr></thead>
+        <tbody>
+        {% for c in candidatos %}
+          <tr>
+            <td><div class="pessoa"><span class="avatar">{{ c.nome|iniciais }}</span><div><a class="nome" href="{{ c.get_absolute_url }}">{{ c.nome }}</a><div class="sub">{{ c.telefone_formatado }}</div></div></div></td>
+            <td><span class="badge badge-{{ c.tom }}">{{ c.get_status_display }}</span></td>
+            <td>{{ c.territorio|default:"—" }}</td>
+            <td class="num">{% if c.distancia_km is not None %}{{ c.distancia_km }} km{% else %}—{% endif %}</td>
+            <td class="right nowrap">
+              {% if c.status == "aprovado" and linha.livres %}<a class="btn btn-sm btn-primary" href="{% url 'vinculos:chamar' %}?candidato={{ c.pk }}&vaga={{ vaga.pk }}">Chamar</a>{% endif %}
+              <a class="btn btn-sm btn-icon btn-whats" href="{% url 'mensagens:compor' %}?candidato={{ c.pk }}" aria-label="WhatsApp">{% icone "message-circle" %}</a>
+            </td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="5">{% include "componentes/_vazio.html" with icone="users" titulo="Nenhum candidato para esta vaga" texto="Importe a planilha do cargo ou envie um link de cadastro." %}</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+  {% else %}
+  <section class="panel">
+    <div class="tabela-wrap">
+      <table class="tabela">
+        <thead><tr><th>Colaborador</th><th>Chamado em</th><th>Prazo até</th><th>{% if aba == "historico" %}Situação{% else %}Tempo restante{% endif %}</th><th>Check-ins do setor</th><th></th></tr></thead>
+        <tbody>
+        {% for v in vinculos %}{% include "vinculos/_linha.html" with mostrar_vaga=False %}
+        {% empty %}
+          <tr><td colspan="6">{% include "componentes/_vazio.html" with icone="user-check" titulo="Ninguém aqui ainda" texto="Quando um candidato aprovado for chamado para esta vaga, ele aparece nesta lista." %}</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+  {% endif %}
+</div>
+{% if pode_checkin %}{% include "vinculos/_dialogo_checkin.html" %}{% endif %}
+{% endblock %}

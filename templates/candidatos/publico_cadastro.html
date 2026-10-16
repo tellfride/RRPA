@@ -1,0 +1,54 @@
+{% extends "base_publico.html" %}
+{% block titulo %}Cadastro para vagas{% endblock %}
+{% block conteudo %}
+<div class="publico-caixa">
+  <h1>{% if atualizacao %}Complete seu cadastro{% else %}Cadastro para vagas{% endif %}</h1>
+  <p class="muted" style="margin-bottom:6px">
+    {% if link.nome_sugerido %}Olá, {{ link.nome_sugerido|primeiro_nome }}! {% endif %}
+    {% if link.tipo == "convite" %}Você recebeu este convite de <strong>{{ link.criado_por.nome_exibicao }}</strong>.{% else %}Este link foi fornecido por <strong>{{ link.criado_por.nome_exibicao }}</strong>.{% endif %}
+    Leva cerca de dois minutos.
+  </p>
+  {% if link.vaga %}<p style="margin-bottom:6px">Vaga: <span class="badge badge-info">{{ link.vaga.nome }}</span></p>{% endif %}
+
+  <form method="post" novalidate data-uma-vez style="margin-top:22px">
+    {% csrf_token %}
+    {% include "componentes/_form_erros.html" %}
+    <div class="honeypot" aria-hidden="true">{{ form.website }}</div>
+    <div class="form-grid">
+      <div class="col-12">{% include "componentes/_campo.html" with campo=form.nome %}</div>
+      <div class="col-6">{% include "componentes/_campo.html" with campo=form.cpf %}</div>
+      <div class="col-6">{% include "componentes/_campo.html" with campo=form.telefone %}</div>
+      <div class="col-12">{% include "componentes/_campo.html" with campo=form.email %}</div>
+      {% if not link.vaga %}<div class="col-12">{% include "componentes/_campo.html" with campo=form.vaga %}</div>{% endif %}
+      <div class="col-4">{% include "componentes/_campo.html" with campo=form.cep %}</div>
+      <div class="col-8"><p class="small muted cep-status" data-cep-status aria-live="polite"></p></div>
+      <div class="col-8">{% include "componentes/_campo.html" with campo=form.logradouro %}</div>
+      <div class="col-4">{% include "componentes/_campo.html" with campo=form.numero %}</div>
+      <div class="col-12">{% include "componentes/_campo.html" with campo=form.complemento %}</div>
+      <div class="col-6">{% include "componentes/_campo.html" with campo=form.bairro %}</div>
+      <div class="col-4">{% include "componentes/_campo.html" with campo=form.cidade %}</div>
+      <div class="col-2">{% include "componentes/_campo.html" with campo=form.uf %}</div>
+      <div class="col-12">
+        <div class="consentimento">
+          {{ form.aceite }}
+          <div>
+            <label for="{{ form.aceite.id_for_label }}">{{ form.aceite.label }}</label>
+            <p class="small muted" style="margin-top:4px">A {{ config.nome_unidade }} usa seu nome, CPF, telefone e endereço só para recrutamento e contratação por RPA, conforme a Lei nº 13.709/2018 (LGPD). Você pode pedir correção ou exclusão dos dados a qualquer momento.</p>
+            {% for erro in form.aceite.errors %}<span class="erro" style="color:var(--bad-ink);font-weight:600;font-size:13.5px">{{ erro }}</span>{% endfor %}
+          </div>
+        </div>
+      </div>
+      <div class="col-12">
+        <div class="consentimento">
+          {{ form.aceita_whatsapp }}
+          <div>
+            <label for="{{ form.aceita_whatsapp.id_for_label }}">{{ form.aceita_whatsapp.label }}</label>
+            <p class="small muted" style="margin-top:4px">Opcional. Usamos o WhatsApp só para falar das vagas. Você pode pedir para parar quando quiser.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="form-acoes" style="margin-top:22px"><button class="btn btn-primary" type="submit" style="min-width:200px">Enviar cadastro</button></div>
+  </form>
+</div>
+{% endblock %}

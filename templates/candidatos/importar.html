@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block titulo %}Importar planilha{% endblock %}
+{% block conteudo %}
+<div class="page-head">
+  <div>
+    <p class="crumbs">{% if vaga_fixa %}<a href="{% url 'vagas:detalhe' vaga_fixa.pk %}">{{ vaga_fixa.nome }}</a>{% else %}<a href="{% url 'candidatos:lista' %}">Candidatos</a>{% endif %} / Importar planilha</p>
+    <h1>Importar planilha{% if vaga_fixa %} de {{ vaga_fixa.nome }}{% endif %}</h1>
+    <p class="sub">Cada cargo tem seu modelo de planilha com nome, CPF, telefone e endereço. Preencha, envie aqui e confira antes de cadastrar.</p>
+  </div>
+  <div class="page-actions"><a class="btn" href="{% url 'candidatos:importacoes' %}">{% icone "history" %} Importações anteriores</a></div>
+</div>
+
+<div class="passos" aria-label="Etapas">
+  <span class="passo atual">1. Enviar arquivo</span><span class="passo">2. Conferir</span><span class="passo">3. Cadastrar</span>
+</div>
+
+{% if erro %}<div class="alerta alerta-erro" role="alert">{% icone "circle-alert" %}<div>{{ erro }}</div></div>{% endif %}
+
+<div class="grid grid-60-40">
+  <form method="post" enctype="multipart/form-data" class="panel" data-uma-vez>
+    {% csrf_token %}
+    <div class="panel-body stack" style="--gap:18px">
+      {% if vaga_fixa %}
+        <div class="field"><span class="label">Vaga</span><div><span class="badge badge-info">{{ vaga_fixa.nome }}</span></div></div>
+      {% else %}
+        <div class="field">
+          <label for="vaga">Vaga dos candidatos <span class="obrigatorio" aria-hidden="true">*</span></label>
+          <select id="vaga" name="vaga" class="select" required>
+            <option value="">Escolha a vaga</option>
+            {% for v in vagas %}<option value="{{ v.pk }}">{{ v.nome }}</option>{% endfor %}
+          </select>
+          <span class="ajuda">Todos da planilha serão cadastrados como interessados nesta vaga.</span>
+        </div>
+      {% endif %}
+      <div class="field">
+        <label for="arquivo">Planilha preenchida <span class="obrigatorio" aria-hidden="true">*</span></label>
+        <input id="arquivo" name="arquivo" type="file" class="input arquivo" accept=".xlsx,.xlsm,.csv" required style="padding:8px">
+        <span class="ajuda">Formatos: .xlsx (modelo da vaga) ou .csv. Até 5.000 linhas.</span>
+      </div>
+      <label class="row" style="gap:10px;flex-wrap:nowrap;font-weight:500"><input type="checkbox" name="como_aprovados" class="check"> <span>Já cadastrar como <strong>aprovados</strong> (pulam a etapa de aprovação)</span></label>
+      <div class="form-acoes">
+        <button class="btn btn-primary" type="submit">Conferir planilha</button>
+        {% if vaga_fixa %}<a class="btn" href="{% url 'vagas:detalhe' vaga_fixa.pk %}">Cancelar</a>{% endif %}
+      </div>
+    </div>
+  </form>
+
+  <section class="panel">
+    <div class="panel-body">
+      <h2 style="font-size:16px;margin-bottom:10px">Antes de enviar</h2>
+      <ul class="stack small" style="--gap:8px;padding-left:18px;margin:0">
+        <li>{% if vaga_fixa %}<a href="{% url 'vagas:modelo' vaga_fixa.pk %}">Baixe o modelo de {{ vaga_fixa.nome }}</a>{% else %}Baixe o modelo da vaga em <a href="{% url 'vagas:lista' %}">Vagas</a>{% endif %} e preencha uma pessoa por linha.</li>
+        <li>Obrigatórios: <strong>nome completo, CPF, telefone com DDD e CEP</strong>.</li>
+        <li>Rua, bairro, cidade e UF podem ficar em branco: o CEP completa.</li>
+        <li>CPF que já existe no sistema não duplica; a pessoa só é vinculada a esta vaga.</li>
+        <li>Linhas com problema não impedem as demais: você baixa a lista delas para corrigir.</li>
+      </ul>
+    </div>
+  </section>
+</div>
+{% endblock %}

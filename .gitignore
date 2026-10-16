@@ -1,0 +1,17 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Segredos e dados locais
+.env
+data/
+*.sqlite3
+staticfiles/
+
+# Editores / sistema
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db

@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block titulo %}{% if object %}Editar vaga{% else %}Nova vaga{% endif %}{% endblock %}
+{% block conteudo %}
+<div class="page-head">
+  <div>
+    <p class="crumbs"><a href="{% url 'vagas:lista' %}">Vagas</a> / {% if object %}{{ object.nome }}{% else %}Nova{% endif %}</p>
+    <h1>{% if object %}Editar vaga{% else %}Nova vaga{% endif %}</h1>
+    <p class="sub">Cadastre o cargo e quantas pessoas podem ocupá-lo ao mesmo tempo. O modelo de planilha do cargo é criado automaticamente.</p>
+  </div>
+</div>
+<form method="post" class="panel" novalidate data-uma-vez>
+  {% csrf_token %}
+  <div class="panel-body">
+    {% include "componentes/_form_erros.html" %}
+    <div class="form-grid">
+      <div class="col-6">{% include "componentes/_campo.html" with campo=form.nome %}</div>
+      <div class="col-4">{% include "componentes/_campo.html" with campo=form.setor %}</div>
+      <div class="col-2">{% include "componentes/_campo.html" with campo=form.quantidade %}</div>
+      <div class="col-12">{% include "componentes/_campo.html" with campo=form.descricao %}</div>
+      <div class="col-12">{% include "componentes/_campo.html" with campo=form.responsaveis %}</div>
+      <div class="col-12">{% include "componentes/_campo.html" with campo=form.ativa %}</div>
+    </div>
+    <div class="form-acoes" style="margin-top:20px">
+      <button class="btn btn-primary" type="submit">Salvar vaga</button>
+      <a class="btn" href="{% if object %}{% url 'vagas:detalhe' object.pk %}{% else %}{% url 'vagas:lista' %}{% endif %}">Cancelar</a>
+    </div>
+  </div>
+</form>
+{% endblock %}

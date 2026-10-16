@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% block titulo %}Enviar para vários{% endblock %}
+{% block conteudo %}
+<div class="page-head">
+  <div>
+    <p class="crumbs"><a href="{% url 'candidatos:lista' %}">Candidatos</a> / Enviar para vários</p>
+    <h1>Enviar para {{ linhas|length }} {% if linhas|length == 1 %}pessoa{% else %}pessoas{% endif %}</h1>
+    <p class="sub">{% if RRPA_WHATSAPP_API %}Confira a mensagem de cada pessoa. Você pode disparar tudo de uma vez pela conexão do WhatsApp ou abrir o WhatsApp com a mensagem pronta, pessoa por pessoa.{% else %}Cada linha abre o WhatsApp com a mensagem já pronta para aquela pessoa. A linha fica marcada depois que você abre.{% endif %}</p>
+  </div>
+</div>
+
+<section class="panel">
+  <div class="panel-body">
+    <form method="get" data-autoenviar>
+      <input type="hidden" name="ids" value="{{ ids }}">
+      <div class="field" style="max-width:520px">
+        <label for="modelo">Modelo de mensagem</label>
+        <select id="modelo" name="modelo" class="select">
+          {% for m in modelos %}<option value="{{ m.pk }}" {% if modelo and m.pk == modelo.pk %}selected{% endif %}>{{ m.get_categoria_display }} — {{ m.nome }}</option>{% endfor %}
+        </select>
+      </div>
+    </form>
+    {% if avisos %}
+    <div class="alerta alerta-aviso" style="margin:16px 0 0">{% icone "triangle-alert" %}<div>Alguns campos ficaram sem valor para parte das pessoas: {% for c in avisos %}<strong>{{ c|chave }}</strong>{% if not forloop.last %}, {% endif %}{% endfor %}. Abra cada mensagem e confira antes de enviar.</div></div>
+    {% endif %}
+  </div>
+</section>
+
+{% if RRPA_WHATSAPP_API %}
+<section class="panel secao">
+  <div class="panel-head"><div><h2>Disparo automático</h2><p class="sub">Envia pela conexão do WhatsApp, no ritmo escolhido, e acompanha entrega e leitura.</p></div>
+    {% if conexao.pode_enviar %}<span class="badge badge-good">{% icone "check" %} {{ conexao.get_provedor_display }}</span>{% endif %}</div>
+  <div class="panel-body">
+  {% if not conexao.pode_enviar %}
+    <div class="alerta alerta-info" style="margin:0">{% icone "info" %}<div>A conexão com o WhatsApp ainda não está pronta, então só o envio manual (botão de cada pessoa) está disponível.
+      {% if eh_admin %}<a href="{% url 'whatsapp:conexao' %}">Configurar o WhatsApp</a>.{% else %}Peça ao administrador para configurá-la em Configurações.{% endif %}</div></div>
+  {% else %}
+    {% if sem_template %}
+    <div class="alerta alerta-aviso" style="margin:0 0 14px">{% icone "triangle-alert" %}<div>A API oficial só envia <strong>template aprovado</strong>. Este modelo não tem o nome do template: <a href="{% url 'mensagens:modelo_editar' modelo.pk %}">preencha em “Editar modelo”</a> ou escolha outro modelo.</div></div>
+    {% endif %}
+    <form method="post" action="{% url 'mensagens:disparo_criar' %}" data-uma-vez>
+      {% csrf_token %}
+      <input type="hidden" name="ids" value="{{ ids }}">
+      {% if modelo %}<input type="hidden" name="modelo" value="{{ modelo.pk }}">{% endif %}
+      <div class="row" style="align-items:flex-end;gap:16px">
+        <div class="field" style="width:200px"><label for="ritmo">Mensagens por minuto</label>
+          <input id="ritmo" name="ritmo" class="input" type="number" min="1" max="{{ conexao.limite_por_minuto }}" value="{{ ritmo_padrao }}">
+          <span class="ajuda">No máximo {{ conexao.limite_por_minuto }} (limite da conexão).</span></div>
+        <button class="btn btn-primary" type="submit" {% if not elegiveis or sem_template or not modelo %}disabled{% endif %}
+                data-confirmar="Disparar {{ elegiveis }} mensagem(ns) agora?">{% icone "send" %} Disparar para {{ elegiveis }} {% if elegiveis == 1 %}pessoa{% else %}pessoas{% endif %}</button>
+      </div>
+      {% if nao_enviadas %}<p class="small muted" style="margin-top:10px">{{ nao_enviadas }} {% if nao_enviadas == 1 %}pessoa não entra{% else %}pessoas não entram{% endif %} no disparo (motivo em cada linha). Quem pedir “SAIR” depois de entrar na fila também deixa de receber.</p>{% endif %}
+    </form>
+  {% endif %}
+  </div>
+</section>
+{% endif %}
+
+<section class="panel secao">
+  {% for l in linhas %}
+  <div class="envio-linha" data-linha-envio>
+    <span class="avatar">{{ l.c.nome|iniciais }}</span>
+    <div class="grow">
+      <div class="row" style="gap:8px"><strong>{{ l.c.nome }}</strong><span class="muted small num">{{ l.c.telefone_formatado }}</span><span class="badge badge-good" data-marca-envio hidden>{% icone "check" %} WhatsApp aberto</span>
+        {% if RRPA_WHATSAPP_API and conexao.pode_enviar %}{% if l.motivo %}<span class="badge badge-warn">Fora do disparo: {{ l.motivo }}</span>{% else %}<span class="badge badge-info">Entra no disparo</span>{% endif %}{% endif %}</div>
+      <details><summary class="small muted" style="cursor:pointer;margin-top:4px">Ver mensagem</summary><div class="envio-texto" id="txt-{{ l.c.pk }}">{{ l.texto }}</div>
+        {% if RRPA_WHATSAPP_API and exige_template and l.parametros %}<p class="small muted" style="margin-top:6px">Parâmetros do template: {% for n, valor in l.parametros %}<code>{% templatetag openvariable %}{{ n }}{% templatetag closevariable %}</code> = {{ valor|default:"—" }}{% if not forloop.last %}; {% endif %}{% endfor %}</p>{% endif %}</details>
+    </div>
+    <div>
+      {% if l.ok %}
+        <button class="btn btn-sm btn-whats" type="button" data-whatsapp data-texto-de="#txt-{{ l.c.pk }}" data-telefone="{{ l.whatsapp }}" data-registrar="{% url 'mensagens:registrar' %}" data-reg-candidato="{{ l.c.pk }}" {% if modelo %}data-reg-modelo="{{ modelo.pk }}"{% endif %}>{% icone "message-circle" %} Abrir WhatsApp</button>
+      {% elif l.recusou %}
+        <span class="badge badge-bad">{% icone "ban" %} Pediu para não receber</span>
+      {% else %}
+        <span class="badge badge-bad">{% icone "triangle-alert" %} Telefone inválido</span>
+      {% endif %}
+    </div>
+  </div>
+  {% endfor %}
+</section>
+{% endblock %}

@@ -1,0 +1,10 @@
+{% if messages %}
+<div class="mensagens" aria-live="polite">
+  {% for m in messages %}
+  <div class="alerta {% if m.level_tag == 'success' %}alerta-sucesso{% elif m.level_tag == 'error' %}alerta-erro{% elif m.level_tag == 'warning' %}alerta-aviso{% else %}alerta-info{% endif %}" role="{% if m.level_tag == 'error' %}alert{% else %}status{% endif %}" {% if m.level_tag == 'success' %}data-some-em="7000"{% endif %}>
+    {% if m.level_tag == 'success' %}{% icone "circle-check" %}{% elif m.level_tag == 'error' %}{% icone "circle-alert" %}{% elif m.level_tag == 'warning' %}{% icone "triangle-alert" %}{% else %}{% icone "info" %}{% endif %}
+    <div>{{ m }}</div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}

@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block titulo %}Usuários{% endblock %}
+{% block conteudo %}
+<div class="page-head">
+  <div>
+    <h1>Usuários</h1>
+    <p class="sub">Quem acessa o sistema e o que cada perfil pode fazer.</p>
+  </div>
+  <div class="page-actions"><a class="btn btn-primary" href="{% url 'contas:usuario_novo' %}">{% icone "plus" %} Novo usuário</a></div>
+</div>
+
+<form method="get" class="filtros" data-autoenviar>
+  <div class="busca">{% icone "search" %}<input class="input" type="search" name="q" value="{{ q }}" placeholder="Buscar por nome ou usuário" aria-label="Buscar usuário"></div>
+  <select class="select" name="perfil" aria-label="Filtrar por perfil">
+    <option value="">Todos os perfis</option>
+    {% for valor, rotulo in perfis %}<option value="{{ valor }}" {% if valor == perfil %}selected{% endif %}>{{ rotulo }}</option>{% endfor %}
+  </select>
+  <button class="btn" type="submit">Filtrar</button>
+</form>
+
+<div class="alerta alerta-info">
+  {% icone "info" %}
+  <div>
+    <strong>Administrador(a)</strong> cadastra vagas, usuários e configurações. <strong>Recrutador(a)</strong> cadastra e aprova candidatos, chama para a vaga e envia mensagens.
+    <strong>Responsável do setor</strong> faz o check-in mensal das vagas pelas quais responde. <strong>Visualizador(a)</strong> só acompanha o painel, com nomes abreviados.
+  </div>
+</div>
+
+<section class="panel">
+  <div class="tabela-wrap">
+    <table class="tabela">
+      <thead><tr><th>Pessoa</th><th>Usuário</th><th>Perfil</th><th>Situação</th><th></th></tr></thead>
+      <tbody>
+      {% for u in usuarios %}
+        <tr>
+          <td><div class="pessoa"><span class="avatar">{{ u.nome_exibicao|iniciais }}</span><div><span class="nome">{{ u.nome_exibicao }}</span><div class="sub">{{ u.email|default:"sem e-mail" }}</div></div></div></td>
+          <td>{{ u.username }}</td>
+          <td>{{ u.get_perfil_display }}</td>
+          <td>{% if u.is_active %}<span class="badge badge-good">Ativo</span>{% else %}<span class="badge">Desativado</span>{% endif %}</td>
+          <td class="right nowrap">
+            <a class="btn btn-sm" href="{% url 'contas:usuario_editar' u.pk %}">Editar</a>
+            <a class="btn btn-sm" href="{% url 'contas:redefinir_senha' u.pk %}">Nova senha</a>
+          </td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="5">{% include "componentes/_vazio.html" with icone="users" titulo="Nenhum usuário encontrado" texto="Ajuste a busca ou crie um novo acesso." %}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}

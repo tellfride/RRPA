@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block titulo %}{% if object %}Editar modelo{% else %}Novo modelo{% endif %}{% endblock %}
+{% block conteudo %}
+<div class="page-head">
+  <div>
+    <p class="crumbs"><a href="{% url 'mensagens:modelos' %}">Mensagens de WhatsApp</a> / {% if object %}{{ object.nome }}{% else %}Novo modelo{% endif %}</p>
+    <h1>{% if object %}Editar modelo{% else %}Novo modelo de mensagem{% endif %}</h1>
+  </div>
+</div>
+<div class="grid grid-60-40">
+  <form method="post" class="panel" novalidate data-uma-vez>
+    {% csrf_token %}
+    <div class="panel-body stack" style="--gap:16px">
+      {% include "componentes/_form_erros.html" %}
+      <div class="form-grid">
+        <div class="col-8">{% include "componentes/_campo.html" with campo=form.nome %}</div>
+        <div class="col-4">{% include "componentes/_campo.html" with campo=form.categoria %}</div>
+      </div>
+      {% include "componentes/_campo.html" with campo=form.texto %}
+      <div>
+        <p class="small" style="font-weight:600;margin-bottom:6px">Inserir campo no texto</p>
+        <div class="campos-chip">
+          {% for nome, descricao, exemplo in campos %}<button type="button" class="campo-chip" data-inserir-campo="{{ nome }}" data-dica="{{ descricao }}">{{ nome|chave }}</button>{% endfor %}
+        </div>
+      </div>
+      {% if RRPA_WHATSAPP_API %}<details class="template-oficial" {% if form.template_oficial_nome.value or form.template_oficial_nome.errors or form.template_oficial_variaveis.errors %}open{% endif %}>
+        <summary>API oficial da Meta (envio automático)</summary>
+        <div class="stack" style="--gap:14px;margin-top:14px">
+          <p class="small muted">Para mensagens iniciadas pela unidade, a Meta só aceita <strong>template aprovado</strong>. Informe o nome dele e quais campos preenchem <code>{% templatetag openvariable %}1{% templatetag closevariable %}</code>, <code>{% templatetag openvariable %}2{% templatetag closevariable %}</code>… O texto acima continua valendo para o Simulador e para o envio manual.</p>
+          <div class="form-grid">
+            <div class="col-8">{% include "componentes/_campo.html" with campo=form.template_oficial_nome %}</div>
+            <div class="col-4">{% include "componentes/_campo.html" with campo=form.template_oficial_idioma %}</div>
+          </div>
+          {% include "componentes/_campo.html" with campo=form.template_oficial_variaveis %}
+        </div>
+      </details>{% endif %}
+      {% include "componentes/_campo.html" with campo=form.ativo %}
+      <div class="form-acoes">
+        <button class="btn btn-primary" type="submit">Salvar modelo</button>
+        <a class="btn" href="{% url 'mensagens:modelos' %}">Cancelar</a>
+      </div>
+    </div>
+  </form>
+
+  <section class="panel">
+    <div class="panel-head"><div><h2>Como vai aparecer</h2><p class="sub">Com dados de exemplo.</p></div></div>
+    <div class="panel-body">
+      <div class="balao" id="previa-mensagem" aria-live="polite"></div>
+      <p class="small muted" style="margin-top:12px">Os campos entre chaves são trocados no envio. Se o campo não tiver valor naquele momento (por exemplo, link de cadastro em uma convocação), o sistema avisa antes de você enviar.</p>
+    </div>
+  </section>
+</div>
+{{ exemplos|json_script:"exemplos-campos" }}
+{% endblock %}

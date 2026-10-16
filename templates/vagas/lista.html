@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block titulo %}Vagas{% endblock %}
+{% block conteudo %}
+<div class="page-head">
+  <div>
+    <h1>Vagas</h1>
+    <p class="sub">Cada cargo tem um número de vagas. O colaborador fica até {{ config.prazo_texto }}, contando a partir do mês em que foi chamado.</p>
+  </div>
+  {% if eh_admin %}<div class="page-actions"><a class="btn btn-primary" href="{% url 'vagas:nova' %}">{% icone "plus" %} Nova vaga</a></div>{% endif %}
+</div>
+
+{% if quadro %}
+<section class="panel">
+  <div class="quadro-legenda">
+    <span><i class="pip-legenda ocupada"></i> Ocupada</span>
+    <span><i class="pip-legenda vencendo"></i> Vence em até {{ config.dias_alerta }} dias</span>
+    <span><i class="pip-legenda livre"></i> Disponível</span>
+    <span><i class="pip-legenda vencido"></i> Prazo vencido</span>
+  </div>
+  <div style="margin-top:12px">
+  {% for linha in quadro %}
+    <div class="quadro-linha com-acoes">
+      <div>
+        <a class="quadro-nome" href="{% url 'vagas:detalhe' linha.vaga.pk %}">{{ linha.vaga.nome }}</a>
+        {% if linha.vaga.setor %}<div class="quadro-setor">{{ linha.vaga.setor }}</div>{% endif %}
+        {% if not linha.vaga.ativa %}<span class="badge" style="margin-top:4px">Inativa</span>{% endif %}
+      </div>
+      {% include "componentes/_pips.html" %}
+      <div class="quadro-numeros">
+        <span class="quadro-total num">{{ linha.n_ocupadas }}<small> de {{ linha.vaga.quantidade }}</small></span>
+        {% if linha.n_vencendo %}<span class="badge badge-warn">{% icone "clock" %} {{ linha.n_vencendo }} vencendo</span>{% endif %}
+        {% if linha.n_vencidos %}<span class="badge badge-bad">{% icone "triangle-alert" %} {{ linha.n_vencidos }} vencido{{ linha.n_vencidos|pluralize }}</span>{% endif %}
+      </div>
+      <div class="btn-grupo" style="flex-wrap:nowrap">
+        {% if pode_recrutar %}
+          <a class="btn btn-sm btn-icon" href="{% url 'vagas:modelo' linha.vaga.pk %}" aria-label="Baixar modelo de planilha de {{ linha.vaga.nome }}" data-dica="Baixar modelo de planilha (.xlsx)" data-dica-pos="esquerda">{% icone "file-spreadsheet" %}</a>
+          <a class="btn btn-sm btn-icon" href="{% url 'candidatos:importar_vaga' linha.vaga.pk %}" aria-label="Importar planilha de {{ linha.vaga.nome }}" data-dica="Importar planilha preenchida" data-dica-pos="esquerda">{% icone "upload" %}</a>
+        {% endif %}
+        {% if eh_admin %}
+          <a class="btn btn-sm btn-icon" href="{% url 'vagas:editar' linha.vaga.pk %}" aria-label="Editar {{ linha.vaga.nome }}" data-dica="Editar vaga" data-dica-pos="esquerda">{% icone "pencil" %}</a>
+        {% endif %}
+        <a class="btn btn-sm" href="{% url 'vagas:detalhe' linha.vaga.pk %}">Abrir</a>
+      </div>
+    </div>
+  {% endfor %}
+  </div>
+</section>
+{% else %}
+<section class="panel">
+  <div class="vazio">
+    {% icone "briefcase" %}
+    <h3>Nenhuma vaga cadastrada</h3>
+    {% if eh_admin %}
+      <p>Cadastre os cargos que recebem colaboradores em RPA. Você pode começar pelos sugeridos (Auxiliar administrativo, Rouparia, Almoxarifado, Farmácia, NAF, ASG, Secretárias e PCD) e ajustar a quantidade de cada um.</p>
+      <div class="row" style="justify-content:center;margin-top:16px">
+        <form method="post" action="{% url 'vagas:sugeridas' %}">{% csrf_token %}<button class="btn btn-primary" type="submit">Cadastrar cargos sugeridos</button></form>
+        <a class="btn" href="{% url 'vagas:nova' %}">Cadastrar uma vaga</a>
+      </div>
+    {% else %}
+      <p>Quando o administrador cadastrar vagas para você, elas aparecem aqui.</p>
+    {% endif %}
+  </div>
+</section>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,6 @@
+<div class="vazio">
+  {% icone icone|default:"info" %}
+  <h3>{{ titulo }}</h3>
+  {% if texto %}<p>{{ texto }}</p>{% endif %}
+  {% if acao_url %}<a class="btn btn-primary" href="{{ acao_url }}">{{ acao_texto }}</a>{% endif %}
+</div>

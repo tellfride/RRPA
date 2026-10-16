@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+{% load static %}
+{% block titulo %}Mapa territorial{% endblock %}
+{% block head %}
+  <link rel="stylesheet" href="{% static 'vendor/leaflet/leaflet.css' %}">
+  <link rel="stylesheet" href="{% static 'vendor/markercluster/MarkerCluster.css' %}">
+{% endblock %}
+
+{% block conteudo %}
+<div class="page-head">
+  <div>
+    <h1>Mapa territorial</h1>
+    <p class="sub">Veja onde moram os candidatos e a que vaga se candidataram: por bairro, ponto a ponto ou por concentração. As linhas mostram 5, 10 e 20 km em torno de {{ config.nome_unidade }}.</p>
+  </div>
+</div>
+
+{% if not config.tem_coordenadas %}
+<div class="alerta alerta-aviso">
+  {% icone "triangle-alert" %}
+  <div>O CEP da unidade ainda não foi informado, então o mapa não desenha as distâncias.
+  {% if eh_admin %}<a href="{% url 'core:configuracoes' %}">Informar o CEP da unidade</a>.{% else %}Peça ao administrador para informar.{% endif %}</div>
+</div>
+{% endif %}
+
+<form id="mapa-filtros" class="filtros" aria-label="Filtros do mapa">
+  <select name="vaga" class="select" aria-label="Vaga de interesse">
+    <option value="">Todas as vagas</option>
+    {% for v in vagas %}<option value="{{ v.pk }}">{{ v.nome }}</option>{% endfor %}
+  </select>
+  <select name="ate_km" class="select" aria-label="Distância da unidade">
+    <option value="">Qualquer distância</option>
+    <option value="5">Até 5 km</option><option value="10">Até 10 km</option><option value="20">Até 20 km</option><option value="40">Até 40 km</option>
+  </select>
+  <div class="busca" style="flex:0 1 240px">{% icone "search" %}<input name="q" class="input" type="search" placeholder="{% if pode_localizar %}Bairro, cidade, nome ou vaga{% else %}Bairro ou cidade{% endif %}" aria-label="Buscar no mapa" autocomplete="off"></div>
+  <details class="chip" style="padding:0"><summary style="padding:4px 12px;cursor:pointer;list-style:none">{% icone "sliders-horizontal" %} Situação</summary>
+    <div class="panel" style="position:absolute;z-index:1100;margin-top:6px;padding:12px 16px;min-width:230px"><div class="opcoes">
+      {% for valor, rotulo in status_opcoes %}<label><input type="checkbox" name="status" value="{{ valor }}" class="check" {% if valor in status_padrao %}checked{% endif %}> {{ rotulo }}</label>{% endfor %}
+    </div></div>
+  </details>
+  <button type="reset" class="btn btn-quiet btn-sm">Limpar filtros</button>
+</form>
+
+<div class="mapa-layout">
+  <section class="panel mapa-quadro" aria-label="Mapa dos candidatos">
+    <div class="mapa-barra">
+      <div class="seg" role="radiogroup" aria-label="Modo de visualização">
+        <button type="button" role="radio" data-modo="bairros" aria-checked="true">{% icone "map-pinned" %} Bairros</button>
+        <button type="button" role="radio" data-modo="pontos" aria-checked="false">{% icone "map-pin" %} Pontos</button>
+        <button type="button" role="radio" data-modo="calor" aria-checked="false">{% icone "thermometer" %} Calor</button>
+      </div>
+      <div class="row" style="gap:8px">
+        <div class="seg" role="radiogroup" aria-label="Mapa de fundo">
+          <button type="button" role="radio" data-base="ruas" aria-checked="true">Ruas</button>
+          <button type="button" role="radio" data-base="claro" aria-checked="false">Claro</button>
+        </div>
+        <button type="button" class="btn btn-sm" id="btn-centralizar" data-dica="Enquadrar todos os candidatos no mapa" data-dica-pos="baixo">{% icone "locate-fixed" %} Centralizar</button>
+      </div>
+    </div>
+
+    <p id="aviso-amostra" class="alerta alerta-aviso" style="margin:0;border-radius:0;border-width:0 0 1px" hidden>{% icone "info" %}<span id="aviso-amostra-texto"></span></p>
+
+    <div class="mapa-area" id="mapa-area" role="region" aria-label="Mapa">
+      <div id="mapa"></div>
+      <div id="mapa-carregando" class="mapa-sobre" aria-hidden="true"><div class="cartao"><strong>Carregando o mapa…</strong></div></div>
+      <div id="mapa-atualizando" class="mapa-atualizando" role="status" hidden>Atualizando…</div>
+      <div id="mapa-erro" class="mapa-sobre" role="alert" hidden><div class="cartao">{% icone "triangle-alert" "icon-lg" %}<h3 style="margin:6px 0">Mapa indisponível</h3><p id="mapa-erro-texto" class="small" style="color:var(--bad-ink)"></p><button type="button" class="btn btn-sm" id="btn-tentar-de-novo" style="margin-top:12px">{% icone "refresh-cw" %} Tentar de novo</button></div></div>
+      <div id="mapa-vazio" class="mapa-sobre" hidden><div class="cartao">{% icone "map" "icon-lg" %}<h3 style="margin:6px 0">Nenhum candidato com localização para esses filtros</h3><p id="mapa-vazio-texto" class="small muted"></p></div></div>
+      <div id="mapa-legenda" class="mapa-legenda" hidden></div>
+    </div>
+    <p class="small muted" style="padding:12px 16px;border-top:1px solid var(--line);display:flex;gap:8px;align-items:flex-start">{% icone "shield-check" %} As posições são aproximadas (nível de CEP ou rua), e não o endereço exato, para proteger a privacidade dos candidatos. Nomes e telefones não são desenhados no mapa: a equipe de recrutamento os vê ao clicar em um bairro ou ponto.</p>
+  </section>
+
+  <aside class="mapa-lateral" aria-label="Resumo do mapa">
+    <div class="estatisticas" style="grid-template-columns:1fr">
+      <div class="estatistica"><span>No mapa</span><b class="num" id="st-nomapa">—</b><span class="small muted" id="st-cobertura"></span></div>
+      <div class="estatistica"><span>Sem localização</span><b class="num" id="st-sem">—</b><span class="small muted">Sem CEP ou ainda não localizados</span></div>
+      <div class="estatistica"><span>Posição aproximada</span><b class="num" id="st-aprox">—</b><span class="small muted">Localizados pelo bairro ou cidade</span></div>
+    </div>
+
+    <section class="panel" aria-labelledby="t-rank">
+      <div class="panel-head"><h2 id="t-rank">Ranking de bairros</h2><span class="badge badge-info" id="ranking-contagem">0</span></div>
+      <div class="panel-body" style="padding-bottom:10px" id="ranking-busca-caixa" hidden>
+        <input id="ranking-busca" class="input" type="search" placeholder="Buscar bairro…" aria-label="Buscar bairro no ranking" autocomplete="off">
+      </div>
+      <div class="ranking-lista" id="ranking-lista"></div>
+      <p class="small muted" id="ranking-mais" style="padding:10px 20px;border-top:1px solid var(--line)" hidden>Mostrando os 200 primeiros. Use a busca para encontrar os demais.</p>
+    </section>
+
+    <section class="panel" id="semgeo-box" hidden>
+      <div class="panel-head"><div><h2>Bairros sem localização</h2><p class="sub" id="semgeo-texto"></p></div></div>
+      <ul class="lista-linhas" id="semgeo-lista" style="margin-top:8px"></ul>
+      <div class="panel-body" style="padding-top:10px"><button type="button" class="btn btn-sm btn-quiet" id="semgeo-toggle" hidden></button></div>
+    </section>
+
+    {% if fila %}
+    <section class="panel">
+      <div class="panel-head"><div><h2>{% icone "map-pinned" %} Localização pendente</h2><p class="sub">Candidatos aguardando localização pelo CEP ou cuja busca falhou. Um processo em segundo plano trabalha nisso sozinho.</p></div></div>
+      <div class="panel-body stack" style="--gap:12px">
+        <div class="estatisticas" style="grid-template-columns:1fr 1fr">
+          <div class="estatistica"><span>Na fila</span><b class="num" id="fila-pendentes">{{ fila.pending }}</b></div>
+          <div class="estatistica"><span>Não localizados</span><b class="num" id="fila-falharam">{{ fila.failed }}</b></div>
+        </div>
+        {% if pode_localizar %}<button type="button" class="btn btn-primary" id="btn-localizar" {% if not fila.total %}disabled{% endif %}>{% icone "refresh-cw" %} Localizar pendentes agora</button>{% endif %}
+        {% if eh_admin %}<button type="button" class="btn btn-sm" id="btn-relocalizar">{% icone "undo-2" %} Relocalizar todos</button>
+        <p class="small muted">Use se algum candidato aparecer no lugar errado: a consulta de CEP é refeita.</p>{% endif %}
+      </div>
+    </section>
+    {% endif %}
+  </aside>
+</div>
+
+{{ config_mapa|json_script:"mapa-config" }}
+{% endblock %}
+
+{% block scripts %}
+  <script src="{% static 'vendor/leaflet/leaflet.js' %}" defer></script>
+  <script src="{% static 'vendor/markercluster/leaflet.markercluster.js' %}" defer></script>
+  <script src="{% static 'vendor/leaflet-heat/leaflet-heat.js' %}" defer></script>
+  <script src="{% static 'js/mapa.js' %}?v={{ RRPA_VERSAO }}" defer></script>
+{% endblock %}

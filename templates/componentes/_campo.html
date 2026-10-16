@@ -1,0 +1,13 @@
+<div class="field {% if campo.errors %}has-error{% endif %}">
+  {% if campo.field.widget.input_type == "checkbox" and not campo.field.widget.allow_multiple_selected %}
+    <label class="row" style="gap:10px;font-weight:500;flex-wrap:nowrap">{{ campo }} <span>{{ campo.label }}</span></label>
+  {% elif campo.field.widget.allow_multiple_selected or campo.field.widget.input_type == "radio" %}
+    <span class="label">{{ campo.label }}{% if campo.field.required %} <span class="obrigatorio" aria-hidden="true">*</span>{% endif %}</span>
+    {{ campo }}
+  {% else %}
+    <label for="{{ campo.id_for_label }}">{{ campo.label }}{% if campo.field.required %} <span class="obrigatorio" aria-hidden="true">*</span>{% endif %}</label>
+    {{ campo }}
+  {% endif %}
+  {% if campo.help_text %}<span class="ajuda">{{ campo.help_text }}</span>{% endif %}
+  {% for erro in campo.errors %}<span class="erro">{{ erro }}</span>{% endfor %}
+</div>

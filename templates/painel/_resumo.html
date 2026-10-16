@@ -1,0 +1,37 @@
+{# Faixa de números principais. Cada número é um atalho para a lista correspondente. #}
+<nav class="resumo" aria-label="Números principais">
+  <{{ tag }} class="resumo-item {% if not links %}sem-link{% endif %}" {% if links %}href="{% url 'painel:detalhe' %}?tipo=disponiveis{% if vaga_id %}&vaga={{ vaga_id }}{% endif %}" data-gaveta{% endif %}>
+    <span class="resumo-rotulo">Vagas disponíveis</span>
+    <span class="resumo-valor">{{ totais.livres }}</span>
+    <span class="resumo-nota">de {{ totais.quantidade }} vagas, {{ totais.ocupadas }} ocupadas ({{ totais.pct_ocupacao }}%)</span>
+    {% if links %}{% icone "arrow-up-right" "resumo-ir" %}{% endif %}
+  </{{ tag }}>
+
+  <{{ tag }} class="resumo-item {% if not links %}sem-link{% endif %}" {% if links %}href="{% url 'painel:detalhe' %}?tipo=ocupantes{% if vaga_id %}&vaga={{ vaga_id }}{% endif %}" data-gaveta{% endif %}>
+    <span class="resumo-rotulo">Em vaga agora</span>
+    <span class="resumo-valor">{{ totais.ocupadas }}</span>
+    <span class="resumo-nota">colaboradores dentro do prazo de {{ config.prazo_texto }}</span>
+    {% if links %}{% icone "arrow-up-right" "resumo-ir" %}{% endif %}
+  </{{ tag }}>
+
+  <{{ tag }} class="resumo-item {% if totais.vencendo %}alerta-warn{% endif %} {% if not links %}sem-link{% endif %}" {% if links %}href="{% url 'painel:detalhe' %}?tipo=vencendo{% if vaga_id %}&vaga={{ vaga_id }}{% endif %}" data-gaveta{% endif %}>
+    <span class="resumo-rotulo">{% icone "clock" %} Vencem em {{ config.dias_alerta }} dias</span>
+    <span class="resumo-valor">{{ totais.vencendo }}</span>
+    <span class="resumo-nota">{% if totais.vencendo %}prepare a troca ou o encerramento{% else %}nenhum prazo próximo do fim{% endif %}</span>
+    {% if links %}{% icone "arrow-up-right" "resumo-ir" %}{% endif %}
+  </{{ tag }}>
+
+  <{{ tag }} class="resumo-item {% if totais.vencidos %}alerta-bad{% endif %} {% if not links %}sem-link{% endif %}" {% if links %}href="{% url 'painel:detalhe' %}?tipo=vencidos{% if vaga_id %}&vaga={{ vaga_id }}{% endif %}" data-gaveta{% endif %}>
+    <span class="resumo-rotulo">{% icone "triangle-alert" %} Prazo vencido</span>
+    <span class="resumo-valor">{{ totais.vencidos }}</span>
+    <span class="resumo-nota">{% if totais.vencidos %}registre a saída para liberar a vaga{% else %}nenhum aguardando baixa{% endif %}</span>
+    {% if links %}{% icone "arrow-up-right" "resumo-ir" %}{% endif %}
+  </{{ tag }}>
+
+  <{{ tag }} class="resumo-item {% if not links %}sem-link{% endif %}" {% if links %}href="{% url 'painel:detalhe' %}?tipo=checkins{% if vaga_id %}&vaga={{ vaga_id }}{% endif %}" data-gaveta{% endif %}>
+    <span class="resumo-rotulo">{% icone "clipboard-check" %} Check-ins pendentes</span>
+    <span class="resumo-valor">{{ pendencias.total }}</span>
+    <span class="resumo-nota">{% if pendencias.atrasadas %}{{ pendencias.atrasadas }} de meses que já terminaram{% else %}validações do setor em dia{% endif %}</span>
+    {% if links %}{% icone "arrow-up-right" "resumo-ir" %}{% endif %}
+  </{{ tag }}>
+</nav>

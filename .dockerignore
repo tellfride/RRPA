@@ -1,0 +1,14 @@
+.git
+.gitignore
+.env
+.venv
+venv
+__pycache__
+*.pyc
+data
+staticfiles
+*.sqlite3
+.claude
+.idea
+.vscode
+README.md

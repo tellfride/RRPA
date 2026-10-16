@@ -1,0 +1,22 @@
+{% extends "base_publico.html" %}
+{% block titulo %}Link indisponível{% endblock %}
+{% block conteudo %}
+<div class="publico-caixa">
+  {% if motivo == "limite" %}
+    <h1>Muitos envios deste dispositivo</h1>
+    <p class="muted">Por segurança, limitamos os cadastros feitos em sequência. Tente novamente mais tarde.</p>
+  {% elif motivo == "usado" %}
+    <h1>Este convite já foi usado</h1>
+    <p class="muted">O cadastro já foi enviado por este link. Se precisar corrigir algo, fale com quem enviou o convite{% if link %} ({{ link.criado_por.nome_exibicao }}){% endif %}.</p>
+  {% elif motivo == "expirado" %}
+    <h1>Este link expirou</h1>
+    <p class="muted">Peça um novo link a quem enviou este{% if link %} ({{ link.criado_por.nome_exibicao }}){% endif %}.</p>
+  {% elif motivo == "revogado" %}
+    <h1>Este link foi desativado</h1>
+    <p class="muted">Peça um novo link a quem enviou este{% if link %} ({{ link.criado_por.nome_exibicao }}){% endif %}.</p>
+  {% else %}
+    <h1>Não encontramos este link</h1>
+    <p class="muted">Confira se o endereço foi copiado por inteiro ou peça um novo link a quem enviou.</p>
+  {% endif %}
+</div>
+{% endblock %}
