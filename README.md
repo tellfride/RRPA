@@ -53,7 +53,7 @@ docker compose exec db pg_dump -U rrpa rrpa > backup.sql
 
 | Perfil | Pode |
 |---|---|
-| **Administrador(a)** | Tudo: vagas, usuários, configurações, atividades, painel compartilhável. |
+| **Administrador(a)** | Tudo: vagas, usuários, configurações, atividades, painel compartilhável e exclusão de cadastros. |
 | **Recrutador(a)** | Cadastrar/importar/aprovar candidatos, chamar para a vaga, encerrar vínculo, mensagens de WhatsApp, links, mapa. |
 | **Responsável do setor** | Ver as suas vagas e fazer o **check-in mensal**. Não vê CPF. |
 | **Visualizador(a)** | Só acompanha o painel e o mapa, com nomes abreviados (“Maria L.”) e sem dados pessoais. |
@@ -160,6 +160,7 @@ Sem `POSTGRES_HOST` o sistema usa SQLite em `data/db.sqlite3`. Para experimentar
 - CPF mascarado nas listas; só administrador e recrutador veem o CPF completo.
 - Formulário público com **autorização LGPD** e **autorização separada para WhatsApp**; CPF repetido não sobrescreve nem revela o cadastro existente.
 - *Remover dados pessoais* (administrador) atende pedido de exclusão e preserva o histórico sem identificar a pessoa; isso inclui nome, telefone e texto das mensagens automáticas e das respostas recebidas.
+- *Excluir cadastro* (administrador, na ficha do candidato ou em massa na lista) apaga de vez duplicados, erros de digitação e testes. Se a pessoa já foi chamada para uma vaga, o **vínculo e os check-ins também são apagados** e a vaga fica livre (a confirmação avisa quantos). Para atender a um pedido de exclusão de dados **mantendo** o histórico, use *Remover dados pessoais*. As mensagens e os convites ligados ao cadastro ficam sem nome, telefone e texto, e convites ainda abertos são revogados.
 - Trilha de atividades (quem fez o quê) em *Administração → Atividades*.
 - Planilhas exportadas neutralizam fórmulas (`=`, `+`, `-`, `@`) digitadas por terceiros.
 

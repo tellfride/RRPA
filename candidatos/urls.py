@@ -22,6 +22,7 @@ urlpatterns = [
     path("candidatos/<int:pk>/reprovar/", views.reprovar, name="reprovar"),
     path("candidatos/<int:pk>/reabrir/", views.reabrir, name="reabrir"),
     path("candidatos/<int:pk>/anonimizar/", views.anonimizar, name="anonimizar"),
+    path("candidatos/<int:pk>/excluir/", views.excluir, name="excluir"),
     path("candidatos/<int:pk>/convite/", views.enviar_convite, name="convite"),
     path("candidatos/<int:pk>/whatsapp/", views.whatsapp_consentimento, name="whatsapp"),
     # público (sem login)

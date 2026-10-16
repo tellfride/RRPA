@@ -1,7 +1,10 @@
 from datetime import timedelta
 from io import BytesIO
+from unittest import mock
 
+from django.contrib.messages import get_messages
 from django.core.files.uploadedfile import SimpleUploadedFile
+from django.db.models import ProtectedError
 from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
@@ -10,10 +13,14 @@ from openpyxl import Workbook, load_workbook
 from candidatos import services
 from candidatos.models import Candidato, Importacao, LinkCadastro
 from contas.models import Usuario
+from core.excecoes import RegraDeNegocio
 from core.fabrica import cpf_valido, telefone_ficticio
-from core.models import Configuracao
+from core.models import Configuracao, LogAtividade
+from mensagens.models import Disparo, EnvioMensagem, MensagemDisparo, MensagemRecebida
 from vagas import planilhas
 from vagas.models import Vaga
+from vinculos import services as vinculos
+from vinculos.models import Checkin, Vinculo
 
 
 def dados_publicos(n=1, **extra):
@@ -241,3 +248,140 @@ class FluxoDeAprovacaoTests(BaseTests):
         self.client.post(reverse("candidatos:whatsapp", args=[self.c.pk]), {"valor": "nao"})
         self.c.refresh_from_db()
         self.assertIs(self.c.whatsapp_ok, False)
+
+
+class ExclusaoDeCandidatoTests(BaseTests):
+    def setUp(self):
+        self.admin = Usuario.objects.create_user("adm", password="x", perfil="admin")
+        self.c = Candidato.objects.create(nome="Pedro Alves", cpf=cpf_valido(900), telefone=telefone_ficticio(9), cep="01310100")
+
+    def outro(self, n, **extra):
+        return Candidato.objects.create(nome=f"Pessoa {n}", cpf=cpf_valido(900 + n), telefone=telefone_ficticio(n), **extra)
+
+    def chamado(self, n=1):
+        """Candidato que já foi chamado para uma vaga (e o vínculo criado)."""
+        candidato = self.outro(n, status=Candidato.Status.APROVADO)
+        return candidato, vinculos.chamar_para_vaga(candidato, self.vaga, self.rec)
+
+    def excluir(self, candidato, usuario=None, **dados):
+        self.client.force_login(usuario or self.admin)
+        return self.client.post(reverse("candidatos:excluir", args=[candidato.pk]), dados)
+
+    def test_admin_exclui_o_cadastro_e_volta_para_a_lista(self):
+        resposta = self.excluir(self.c)
+        self.assertRedirects(resposta, reverse("candidatos:lista"))
+        self.assertFalse(Candidato.objects.filter(pk=self.c.pk).exists())
+        log = LogAtividade.objects.get(acao="candidato.excluido")
+        self.assertEqual((log.usuario, log.descricao, log.entidade_id), (self.admin, "Excluiu o cadastro de Pedro Alves", self.c.pk))
+        self.assertIn("O cadastro de Pedro Alves foi excluído.", [str(m) for m in get_messages(resposta.wsgi_request)])
+
+    def test_quem_esta_em_vaga_e_excluido_com_o_vinculo_e_os_checkins_e_a_vaga_fica_livre(self):
+        candidato, vinculo = self.chamado(1)
+        Checkin.objects.create(vinculo=vinculo, competencia=vinculo.inicio_periodo.replace(day=1),
+                               resultado=Checkin.Resultado.CUMPRIU, registrado_por=self.rec)
+        _, vinculo_de_outro = self.chamado(2)
+        self.assertEqual(Vinculo.objects.ocupando().filter(vaga=self.vaga).count(), 2)
+
+        self.excluir(candidato)
+
+        self.assertFalse(Candidato.objects.filter(pk=candidato.pk).exists())
+        self.assertFalse(Vinculo.objects.filter(pk=vinculo.pk).exists())
+        self.assertEqual(Checkin.objects.count(), 0)
+        self.assertEqual(list(Vinculo.objects.ocupando().filter(vaga=self.vaga)), [vinculo_de_outro])  # a vaga ficou livre; o outro segue
+        log = LogAtividade.objects.get(acao="candidato.excluido")
+        self.assertEqual(log.descricao, "Excluiu o cadastro de Pessoa 1 e 1 vínculo(s) com 1 check-in(s)")
+
+    def test_vinculo_ja_encerrado_tambem_e_apagado(self):
+        candidato, vinculo = self.chamado()
+        vinculos.encerrar_vinculo(vinculo, self.rec, "desistencia")
+        self.excluir(candidato)
+        self.assertFalse(Candidato.objects.filter(pk=candidato.pk).exists())
+        self.assertFalse(Vinculo.objects.exists())
+
+    def test_mensagens_e_convites_ficam_sem_dados_pessoais(self):
+        disparo = Disparo.objects.create(nome="Convocação")
+        mensagem = MensagemDisparo.objects.create(disparo=disparo, candidato=self.c, nome_destino="Pedro Alves", telefone="11999990000",
+                                                  texto="Oi, Pedro", status=MensagemDisparo.Status.FILA)
+        resposta = MensagemRecebida.objects.create(candidato=self.c, telefone="5511999990000", texto="SAIR")
+        envio = EnvioMensagem.objects.create(candidato=self.c, nome_destino="Pedro Alves", telefone="11999990000", texto="Oi, Pedro")
+        convite = services.criar_convite(self.rec, "Pedro Alves", "11999990000", candidato=self.c)
+
+        self.excluir(self.c)
+
+        for objeto in (mensagem, resposta, envio, convite):
+            objeto.refresh_from_db()
+        self.assertEqual((mensagem.candidato, mensagem.telefone, mensagem.texto, mensagem.status), (None, "", "", "ignorada"))
+        self.assertEqual((resposta.candidato, resposta.telefone, resposta.texto), (None, "", ""))
+        self.assertEqual((envio.candidato, envio.nome_destino, envio.telefone, envio.texto), (None, "Cadastro removido", "", ""))
+        self.assertEqual((convite.nome_sugerido, convite.telefone_sugerido), ("", ""))
+        self.assertEqual(convite.estado, "revogado")  # o link aberto não pode mais ser usado
+
+    def test_convite_ja_usado_nao_e_marcado_como_revogado(self):
+        convite = services.criar_convite(self.rec, "Pedro Alves", "11999990000", candidato=self.c)
+        convite.usado_em = timezone.now()
+        convite.save()
+        self.excluir(self.c)
+        convite.refresh_from_db()
+        self.assertIsNone(convite.revogado_em)
+        self.assertEqual(convite.telefone_sugerido, "")
+
+    def test_se_algo_protege_o_cadastro_nada_e_alterado(self):
+        candidato, vinculo = self.chamado()
+        envio = EnvioMensagem.objects.create(candidato=candidato, nome_destino="Pessoa 1", telefone="11999990000", texto="Oi")
+        with mock.patch.object(Candidato, "delete", side_effect=ProtectedError("protegido", set())):
+            with self.assertRaises(RegraDeNegocio):
+                services.excluir(candidato, self.admin)
+        envio.refresh_from_db()
+        self.assertEqual((envio.candidato, envio.texto), (candidato, "Oi"))
+        self.assertTrue(Vinculo.objects.filter(pk=vinculo.pk).exists())  # o vínculo apagado antes foi desfeito
+        self.assertFalse(LogAtividade.objects.filter(acao="candidato.excluido").exists())
+
+    def test_so_o_admin_exclui(self):
+        for usuario in (self.rec, self.gestor):
+            self.assertEqual(self.excluir(self.c, usuario).status_code, 403)
+        self.client.logout()
+        self.assertEqual(self.client.post(reverse("candidatos:excluir", args=[self.c.pk])).status_code, 302)  # vai para a entrada
+        self.client.force_login(self.admin)
+        self.assertEqual(self.client.get(reverse("candidatos:excluir", args=[self.c.pk])).status_code, 405)  # só POST
+        self.assertTrue(Candidato.objects.filter(pk=self.c.pk).exists())
+
+    def test_candidato_inexistente_da_404(self):
+        self.client.force_login(self.admin)
+        self.assertEqual(self.client.post(reverse("candidatos:excluir", args=[999999])).status_code, 404)
+
+    def test_exclusao_em_massa_apaga_os_selecionados_e_so_eles(self):
+        livre = self.outro(1)
+        em_vaga, _ = self.chamado(2)
+        fica = self.outro(3)
+        self.client.force_login(self.admin)
+        resposta = self.client.post(reverse("candidatos:acoes"), {"acao": "excluir", "ids": [self.c.pk, livre.pk, em_vaga.pk]})
+        self.assertRedirects(resposta, reverse("candidatos:lista"))
+        self.assertEqual(list(Candidato.objects.values_list("pk", flat=True)), [fica.pk])
+        self.assertFalse(Vinculo.objects.exists())
+        self.assertEqual([str(m) for m in get_messages(resposta.wsgi_request)], ["3 candidato(s) excluído(s)."])
+
+    def test_exclusao_em_massa_e_so_do_admin_mas_as_outras_acoes_continuam(self):
+        self.client.force_login(self.rec)
+        resposta = self.client.post(reverse("candidatos:acoes"), {"acao": "excluir", "ids": [self.c.pk]})
+        self.assertEqual(resposta.status_code, 403)
+        self.assertTrue(Candidato.objects.filter(pk=self.c.pk).exists())
+        self.client.post(reverse("candidatos:acoes"), {"acao": "aprovar", "ids": [self.c.pk]})
+        self.c.refresh_from_db()
+        self.assertEqual(self.c.status, "aprovado")
+
+    def test_botoes_so_aparecem_para_o_admin_e_a_confirmacao_avisa_do_vinculo(self):
+        url_excluir = reverse("candidatos:excluir", args=[self.c.pk])
+        self.client.force_login(self.admin)
+        ficha = self.client.get(self.c.get_absolute_url())
+        self.assertContains(ficha, f'action="{url_excluir}"')
+        self.assertContains(ficha, 'data-confirmar="Excluir o cadastro de Pedro Alves? Não pode ser desfeito."')
+        self.assertContains(self.client.get(reverse("candidatos:lista")), 'value="excluir"')
+
+        chamado, vinculo = self.chamado()
+        Checkin.objects.create(vinculo=vinculo, competencia=vinculo.inicio_periodo.replace(day=1), resultado=Checkin.Resultado.CUMPRIU)
+        ficha = self.client.get(chamado.get_absolute_url())
+        self.assertContains(ficha, "Isso apaga também 1 vínculo(s) e 1 check-in(s) e libera a vaga.")
+
+        self.client.force_login(self.rec)
+        self.assertNotContains(self.client.get(self.c.get_absolute_url()), url_excluir)
+        self.assertNotContains(self.client.get(reverse("candidatos:lista")), 'value="excluir"')

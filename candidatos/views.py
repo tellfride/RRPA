@@ -1,5 +1,6 @@
 from django.conf import settings
 from django.contrib import messages
+from django.core.exceptions import PermissionDenied
 from django.core.paginator import Paginator
 from django.db.models import Count, Q
 from django.http import Http404, HttpResponse
@@ -89,6 +90,8 @@ def lista(request):
 def acoes_em_massa(request):
     ids = [i for i in (_int(x) for x in request.POST.getlist("ids")) if i]
     acao = request.POST.get("acao", "")
+    if acao == "excluir" and not request.user.eh_admin:
+        raise PermissionDenied  # apagar de vez é só do administrador, como "Remover dados pessoais"
     if not ids:
         messages.warning(request, "Marque ao menos um candidato.")
         return redirect(request.POST.get("proximo") or "candidatos:lista")
@@ -102,15 +105,18 @@ def acoes_em_massa(request):
                 services.aprovar(candidato, request.user, request)
             elif acao == "reprovar":
                 services.reprovar(candidato, request.user, request=request)
+            elif acao == "excluir":
+                services.excluir(candidato, request.user, request=request)
             else:
                 raise RegraDeNegocio("Ação desconhecida.")
             feitos += 1
         except RegraDeNegocio as erro:
             recusados.append(str(erro))
     if feitos:
-        messages.success(request, f"{feitos} candidato(s) {'aprovado(s)' if acao == 'aprovar' else 'marcado(s) como não aprovado(s)'}.")
+        resultado = {"aprovar": "aprovado(s)", "reprovar": "marcado(s) como não aprovado(s)", "excluir": "excluído(s)"}[acao]
+        messages.success(request, f"{feitos} candidato(s) {resultado}.")
     if recusados:
-        messages.warning(request, "Não foi possível alterar alguns: " + " ".join(recusados[:3]))
+        messages.warning(request, f"Não foi possível {'excluir' if acao == 'excluir' else 'alterar'} alguns: " + " ".join(recusados[:3]))
     return redirect(destino_seguro(request.POST.get("proximo"), reverse("candidatos:lista")))
 
 
@@ -198,7 +204,7 @@ def detalhe(request, pk):
     return render(request, "candidatos/detalhe.html", {
         "candidato": candidato, "vinculos": vinculos, "envios": envios, "convites": convites, "linha_tempo": linha_tempo,
         "vagas_livres": vagas_livres, "hoje": hoje, "vinculo_ativo": next((v for v in vinculos if v.status == "ativo"), None),
-        "mini_mapa": mini_mapa,
+        "mini_mapa": mini_mapa, "total_checkins": sum(len(v.checkins.all()) for v in vinculos),
     })
 
 
@@ -234,6 +240,21 @@ def reabrir(request, pk):
 @perfil_requerido(*SOMENTE_ADMIN)
 def anonimizar(request, pk):
     return _acao(request, pk, services.anonimizar, "Os dados pessoais de {nome} foram removidos.")
+
+
+@require_POST
+@perfil_requerido(*SOMENTE_ADMIN)
+def excluir(request, pk):
+    """Apaga o cadastro de vez (e, se houver, o vínculo e os check-ins). Não usa _acao: depois de apagar não há ficha para voltar."""
+    candidato = get_object_or_404(Candidato, pk=pk)
+    nome = candidato.nome
+    try:
+        services.excluir(candidato, request.user, request=request)
+    except RegraDeNegocio as erro:
+        messages.error(request, str(erro))
+        return redirect(destino_seguro(request.POST.get("proximo"), candidato.get_absolute_url()))
+    messages.success(request, f"O cadastro de {nome} foi excluído.")
+    return redirect(destino_seguro(request.POST.get("proximo"), reverse("candidatos:lista")))
 
 
 @require_POST

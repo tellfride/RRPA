@@ -145,6 +145,14 @@
         <form method="post" action="{% url 'candidatos:anonimizar' candidato.pk %}">{% csrf_token %}<button class="btn btn-sm btn-danger" type="submit" data-confirmar="Remover os dados pessoais de {{ candidato.nome }}? Isso não pode ser desfeito.">Remover dados pessoais</button></form>
       </div>
     </section>
+
+    <section class="panel">
+      <div class="panel-body">
+        <h2 style="font-size:15px;margin-bottom:6px">Excluir cadastro</h2>
+        <p class="small muted" style="margin-bottom:10px">Apaga o cadastro de vez, com as mensagens e os convites ligados a ele. Serve para duplicados, erros de digitação e testes.{% if vinculos %} Como {{ candidato.nome|primeiro_nome }} já foi chamado(a) para uma vaga, o vínculo e os check-ins também são apagados e a vaga fica livre. Para manter o histórico sem identificar a pessoa, use “Remover dados pessoais”, acima.{% endif %}</p>
+        <form method="post" action="{% url 'candidatos:excluir' candidato.pk %}">{% csrf_token %}<button class="btn btn-sm btn-danger" type="submit" data-confirmar="Excluir o cadastro de {{ candidato.nome }}?{% if vinculos %} Isso apaga também {{ vinculos|length }} vínculo(s) e {{ total_checkins }} check-in(s) e libera a vaga.{% endif %} Não pode ser desfeito.">{% icone "trash-2" %} Excluir cadastro</button></form>
+      </div>
+    </section>
     {% endif %}
   </div>
 </div>

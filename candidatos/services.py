@@ -2,6 +2,7 @@
 from datetime import timedelta
 
 from django.db import transaction
+from django.db.models import Count, ProtectedError
 from django.utils import timezone
 
 from core import geo
@@ -9,6 +10,7 @@ from core.constantes import VINCULO_ATIVO
 from core.excecoes import RegraDeNegocio
 from core.models import Configuracao, LogAtividade
 from mensagens.disparos import apagar_dados_pessoais
+from mensagens.models import EnvioMensagem
 
 from .models import Candidato, LinkCadastro
 
@@ -73,6 +75,30 @@ def anonimizar(candidato, usuario, request=None):
     apagar_dados_pessoais(candidato)
     LogAtividade.registrar(usuario, "candidato.anonimizado", f"Removeu os dados pessoais de {nome} (LGPD)", candidato, request)
     return candidato
+
+
+@transaction.atomic
+def excluir(candidato, usuario, request=None):
+    """Apaga o cadastro de vez: serve para duplicados, erros de digitação e testes.
+
+    Se a pessoa já foi chamada para uma vaga, o vínculo e os check-ins dela são apagados junto e a vaga fica livre. Para
+    atender a um pedido de exclusão de dados mantendo esse histórico, o caminho é anonimizar(). As mensagens e os convites
+    ligados ao cadastro ficam sem nome, telefone e texto, e convites ainda abertos são revogados.
+    """
+    nome = candidato.nome
+    historico = candidato.vinculos.aggregate(vinculos=Count("id", distinct=True), checkins=Count("checkins"))
+    detalhe = f" e {historico['vinculos']} vínculo(s) com {historico['checkins']} check-in(s)" if historico["vinculos"] else ""
+    LogAtividade.registrar(usuario, "candidato.excluido", f"Excluiu o cadastro de {nome}{detalhe}", candidato, request)
+    apagar_dados_pessoais(candidato)
+    EnvioMensagem.objects.filter(candidato=candidato).update(nome_destino="Cadastro removido", telefone="", texto="")
+    convites = candidato.convites.all()
+    convites.filter(usado_em__isnull=True, revogado_em__isnull=True).update(revogado_em=timezone.now())
+    convites.update(nome_sugerido="", telefone_sugerido="")
+    try:
+        candidato.vinculos.all().delete()  # os check-ins vão junto (CASCADE)
+        candidato.delete()
+    except ProtectedError as erro:  # algo que não conhecemos ainda protege o cadastro: desfaz tudo acima
+        raise RegraDeNegocio(f"{nome} não pode ser excluído(a): há registros que dependem dele(a).") from erro
 
 
 def registrar_whatsapp(candidato, usuario, aceita, request=None):

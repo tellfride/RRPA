@@ -93,6 +93,7 @@
     <button class="btn btn-sm" type="submit" name="acao" value="aprovar">{% icone "user-check" %} Aprovar</button>
     <button class="btn btn-sm btn-whats" type="submit" name="acao" value="mensagem">{% icone "message-circle" %} Enviar mensagem</button>
     <button class="btn btn-sm" type="submit" name="acao" value="reprovar" data-confirmar="Marcar os selecionados como não aprovados?">Não aprovar</button>
+    {% if eh_admin %}<button class="btn btn-sm btn-danger" type="submit" name="acao" value="excluir" data-confirmar="Excluir de vez os cadastros selecionados? De quem já foi chamado(a) para uma vaga, o vínculo e os check-ins também são apagados e a vaga fica livre. Não pode ser desfeito.">{% icone "trash-2" %} Excluir</button>{% endif %}
   </div>
 </form>
 {% endblock %}
