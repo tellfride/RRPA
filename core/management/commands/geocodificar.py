@@ -7,7 +7,10 @@ from core import geo
 
 
 class Command(BaseCommand):
-    help = "Localiza no mapa, pelo CEP, os candidatos que ainda não têm posição."
+    help = "Localiza no mapa, pelo CEP, os candidatos que ainda não têm posição (e mantém o ponto da unidade em dia)."
+
+    INTERVALO_UNIDADE = 60  # segundos entre as conferências do ponto da unidade
+    _unidade_conferida_em = float("-inf")
 
     def add_arguments(self, parser):
         parser.add_argument("--continuo", action="store_true", help="Não encerra: repete a busca de tempos em tempos.")
@@ -21,7 +24,16 @@ class Command(BaseCommand):
                 return
             time.sleep(2 if resolvidos else opcoes["intervalo"])
 
+    def acertar_unidade(self):
+        """Mantém o ponto da unidade igual ao do CEP dela: depois de uma atualização, o ponto antigo se corrige sozinho."""
+        agora = time.monotonic()
+        if agora - self._unidade_conferida_em < self.INTERVALO_UNIDADE:
+            return
+        self._unidade_conferida_em = agora
+        geo.localizar_unidade()
+
     def rodada(self, lote):
+        self.acertar_unidade()
         pendentes = list(Candidato.objects.filter(geo_status=Candidato.GeoStatus.PENDENTE).order_by("id")[:lote])
         resolvidos = 0
         for candidato in pendentes:

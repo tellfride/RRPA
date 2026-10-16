@@ -20,7 +20,7 @@ import requests
 from django.conf import settings
 from django.utils import timezone
 
-from .models import GeoArea, GeoCache
+from .models import Configuracao, GeoArea, GeoCache
 from .utils import normalizar_cep, sem_acentos, validar_cep
 
 log = logging.getLogger(__name__)
@@ -380,3 +380,26 @@ def aplicar_localizacao(candidato, forcar=False, somente_cache=False):
         candidato.geo_status = status.FALHOU
     candidato.save(update_fields=campos)
     return candidato.geo_status == status.OK
+
+
+def localizar_unidade(config=None, forcar=False):
+    """Põe na unidade (Configuracao) o ponto do CEP dela. Retorna True se a unidade ficou com o ponto do CEP.
+
+    O ponto da unidade é uma cópia do que o GeoCache sabe sobre o CEP. O worker chama isto de tempos em tempos para
+    mantê-la igual: se o cache for refeito (atualização do sistema, "Relocalizar"), a cópia se acerta sozinha. Sem isso a
+    unidade ficava para sempre no ponto antigo (o Centro do Rio) e, com ela, os anéis de 5/10/20 km, o filtro por distância
+    e a distância de cada candidato.
+    """
+    config = config or Configuracao.atual()
+    if not validar_cep(config.cep_unidade):
+        return False
+    cache = consultar_cep(config.cep_unidade, forcar=forcar)
+    if cache is None or cache.provisorio or cache.latitude is None or cache.longitude is None:
+        return False
+    if (config.latitude, config.longitude) != (cache.latitude, cache.longitude):
+        log.info("Unidade: ponto do CEP %s mudou de (%s, %s) para (%s, %s)", config.cep_unidade,
+                 config.latitude, config.longitude, cache.latitude, cache.longitude)
+        config.latitude, config.longitude = cache.latitude, cache.longitude
+        config.endereco_unidade = ", ".join(p for p in (cache.logradouro, cache.bairro, cache.cidade) if p)[:200]
+        config.save(update_fields=["latitude", "longitude", "endereco_unidade"])
+    return True

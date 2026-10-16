@@ -61,23 +61,21 @@ def configuracoes(request):
             LogAtividade.registrar(request.user, "config.painel_publico", "Desativou o link do painel compartilhável", request=request)
             messages.success(request, "O link do painel compartilhável foi desativado.")
             return redirect("core:configuracoes")
+        antigo_cep = config.cep_unidade  # antes do formulário: ao validar, ele já grava o CEP novo no objeto
         form = ConfiguracaoForm(request.POST, instance=config)
         if form.is_valid():
-            antigo_cep = config.cep_unidade
             config = form.save()
-            if config.cep_unidade and (config.cep_unidade != antigo_cep or not config.tem_coordenadas):
-                cache = geo.consultar_cep(config.cep_unidade)
-                if cache and cache.latitude is not None:
-                    config.latitude, config.longitude = cache.latitude, cache.longitude
-                    partes = [cache.logradouro, cache.bairro, cache.cidade]
-                    config.endereco_unidade = ", ".join(p for p in partes if p)[:200]
-                    config.save(update_fields=["latitude", "longitude", "endereco_unidade"])
-                else:
-                    messages.warning(request, "Não consegui localizar o CEP da unidade agora; o mapa não calculará distâncias até isso funcionar.")
-            elif not config.cep_unidade:
+            if config.cep_unidade != antigo_cep or not config.cep_unidade:
+                # o ponto guardado era do CEP anterior (ou não há mais CEP): só vale o que for localizado agora
                 config.latitude = config.longitude = None
                 config.endereco_unidade = ""
                 config.save(update_fields=["latitude", "longitude", "endereco_unidade"])
+            if config.cep_unidade and not geo.localizar_unidade(config):
+                messages.warning(
+                    request,
+                    "Não consegui localizar o CEP da unidade agora; o mapa não calculará distâncias até isso funcionar. "
+                    "O sistema tenta de novo sozinho.",
+                )
             LogAtividade.registrar(request.user, "config.salva", "Atualizou as configurações do sistema", request=request)
             messages.success(request, "Configurações salvas.")
             return redirect("core:configuracoes")

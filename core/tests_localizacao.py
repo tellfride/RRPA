@@ -9,11 +9,15 @@ from unittest import mock
 import requests
 from django.apps import apps
 from django.test import TestCase
+from django.urls import reverse
 
 from candidatos.models import Candidato
+from contas.models import Usuario
 from core import geo
 from core.fabrica import cpf_valido, telefone_ficticio
-from core.models import GeoArea, GeoCache
+from core.management.commands import geocodificar
+from core.models import Configuracao, GeoArea, GeoCache
+from core.utils import MES_CALENDARIO
 
 CENTRO_DO_RIO = ("-22.90642", "-43.18223")  # o que a BrasilAPI manda para quase todo CEP do Rio
 CAIXA_GUADALUPE = (-22.8507666, -22.8248894, -43.3879, -43.3604)  # sul, norte, oeste, leste (OpenStreetMap)
@@ -48,14 +52,16 @@ def resposta(status, json):
 class RedeFalsa:
     """Substitui requests.get: responde por serviço (BrasilAPI, AwesomeAPI, Nominatim) e guarda as chamadas feitas."""
 
-    def __init__(self, cep=None, awesome=None, areas=(), ruas=(), osm_fora=False, awesome_fora=False):
+    def __init__(self, cep=None, awesome=None, areas=(), ruas=(), osm_fora=False, awesome_fora=False, cep_fora=False):
         self.cep, self.awesome, self.areas, self.ruas = cep, awesome, areas, ruas
-        self.osm_fora, self.awesome_fora = osm_fora, awesome_fora
+        self.osm_fora, self.awesome_fora, self.cep_fora = osm_fora, awesome_fora, cep_fora
         self.chamadas = []
 
     def __call__(self, url, **kwargs):
         params = kwargs.get("params") or {}
         self.chamadas.append((url, params))
+        if self.cep_fora and ("brasilapi" in url or "viacep" in url):
+            raise requests.ConnectionError("serviço de CEP fora do ar")
         if "brasilapi" in url:
             return resposta(200, self.cep) if self.cep else resposta(404, None)
         if "viacep" in url:
@@ -268,3 +274,127 @@ class MigracaoDosPontosAntigosTests(TestCase):
         for candidato, esperado in ((antigo, "pendente"), (demo, "ok"), (novo, "ok")):
             candidato.refresh_from_db()
             self.assertEqual(candidato.geo_status, esperado, candidato.nome)
+
+
+# ---------------------------------------------------------------- a unidade (hospital) também precisa ficar no lugar certo
+def rede_realengo(**extra):
+    """HMAS, Rua Nilópolis, Realengo (CEP 21725-090)."""
+    base = dict(cep=brasilapi("21725090", "Rua Nilópolis", "Realengo"), awesome={"lat": "-22.8647392", "lng": "-43.4422434"},
+                areas=[lugar_osm("Realengo", caixa=(-22.9164, -22.8408, -43.4699, -43.4058), centro=(-22.88, -43.44))])
+    return RedeFalsa(**{**base, **extra})
+
+
+def configurar_unidade(cep="21725090", lat=float(CENTRO_DO_RIO[0]), lng=float(CENTRO_DO_RIO[1])):
+    config = Configuracao.atual()
+    config.cep_unidade, config.latitude, config.longitude = cep, lat, lng
+    config.save()
+    return config
+
+
+class PontoDaUnidadeTests(TestCase):
+    def localizar(self, rede, **kwargs):
+        with mock.patch("core.geo.requests.get", side_effect=rede), mock.patch("core.geo.time.sleep"):
+            return geo.localizar_unidade(**kwargs)
+
+    def test_unidade_com_o_ponto_antigo_vai_para_o_ponto_do_cep(self):
+        """O HMAS, em Realengo, aparecia no Centro do Rio porque o ponto guardado na configuração nunca era refeito."""
+        config = configurar_unidade()
+        self.assertTrue(self.localizar(rede_realengo()))
+        config.refresh_from_db()
+        self.assertAlmostEqual(config.latitude, -22.8647392)
+        self.assertAlmostEqual(config.longitude, -43.4422434)
+        self.assertEqual(config.endereco_unidade, "Rua Nilópolis, Realengo, Rio de Janeiro")
+        self.assertGreater(geo.haversine_km(config.latitude, config.longitude, float(CENTRO_DO_RIO[0]), float(CENTRO_DO_RIO[1])), 20)
+
+    def test_unidade_que_ja_esta_certa_nao_consulta_a_rede(self):
+        configurar_unidade()
+        self.localizar(rede_realengo())
+        rede = rede_realengo()
+        self.assertTrue(self.localizar(rede))
+        self.assertEqual(rede.chamadas, [])
+
+    def test_sem_cep_a_unidade_nao_muda(self):
+        config = configurar_unidade(cep="")
+        rede = rede_realengo()
+        self.assertFalse(self.localizar(rede))
+        self.assertEqual(rede.chamadas, [])
+        config.refresh_from_db()
+        self.assertEqual(config.latitude, float(CENTRO_DO_RIO[0]))
+
+    def test_servico_fora_do_ar_deixa_a_unidade_como_estava(self):
+        config = configurar_unidade()
+        self.assertFalse(self.localizar(rede_realengo(osm_fora=True)))
+        self.assertFalse(self.localizar(rede_realengo(cep_fora=True)))
+        config.refresh_from_db()
+        self.assertEqual((config.latitude, config.longitude), (float(CENTRO_DO_RIO[0]), float(CENTRO_DO_RIO[1])))
+
+
+class ConfiguracaoDaUnidadeTests(TestCase):
+    def setUp(self):
+        self.client.force_login(Usuario.objects.create_user(username="adm", password="x", perfil="admin"))
+
+    def salvar(self, cep, rede):
+        dados = {"nome_unidade": "HMAS", "cep_unidade": cep, "prazo_meses": 3, "contagem_prazo": MES_CALENDARIO,
+                 "dias_alerta": 30, "validade_convite_dias": 7}
+        with mock.patch("core.geo.requests.get", side_effect=rede), mock.patch("core.geo.time.sleep"):
+            return self.client.post(reverse("core:configuracoes"), dados, follow=True)
+
+    def test_salvar_de_novo_corrige_o_ponto_antigo_da_unidade(self):
+        configurar_unidade()
+        self.salvar("21725-090", rede_realengo())
+        config = Configuracao.atual()
+        self.assertAlmostEqual(config.latitude, -22.8647392)
+        self.assertEqual(config.cep_unidade, "21725090")
+
+    def test_trocar_o_cep_da_unidade_recalcula_o_ponto(self):
+        """O formulário grava o CEP novo no objeto ao validar; o 'CEP antigo' tem de ser lido antes."""
+        configurar_unidade("21660000", -22.8444177, -43.3758278)  # Guadalupe
+        self.salvar("21725090", rede_realengo())
+        config = Configuracao.atual()
+        self.assertEqual(config.cep_unidade, "21725090")
+        self.assertAlmostEqual(config.latitude, -22.8647392)
+
+    def test_cep_novo_que_nao_localiza_apaga_o_ponto_do_cep_antigo(self):
+        configurar_unidade("21660000", -22.8444177, -43.3758278)
+        resposta = self.salvar("21725090", rede_realengo(cep_fora=True))
+        config = Configuracao.atual()
+        self.assertEqual(config.cep_unidade, "21725090")
+        self.assertIsNone(config.latitude)  # melhor sem distâncias do que com as do endereço antigo
+        self.assertTrue(any("Não consegui localizar" in str(m) for m in resposta.context["messages"]))
+
+    def test_tirar_o_cep_apaga_o_ponto(self):
+        configurar_unidade()
+        self.salvar("", rede_realengo())
+        config = Configuracao.atual()
+        self.assertEqual((config.cep_unidade, config.latitude, config.longitude, config.endereco_unidade), ("", None, None, ""))
+
+
+class WorkerDaUnidadeTests(TestCase):
+    def test_worker_confere_a_unidade_no_maximo_uma_vez_por_intervalo(self):
+        comando = geocodificar.Command()
+        with mock.patch("core.management.commands.geocodificar.geo.localizar_unidade") as acertar:
+            comando.rodada(5)
+            comando.rodada(5)
+            self.assertEqual(acertar.call_count, 1)  # a segunda rodada veio antes de 60 s
+            comando.INTERVALO_UNIDADE = 0
+            comando.rodada(5)
+            self.assertEqual(acertar.call_count, 2)
+
+
+class MapaEUnidadeTests(TestCase):
+    def setUp(self):
+        self.client.force_login(Usuario.objects.create_user(username="adm", password="x", perfil="admin"))
+
+    def test_relocalizar_esquece_tambem_o_cep_da_unidade(self):
+        configurar_unidade()
+        ponto = dict(latitude=float(CENTRO_DO_RIO[0]), longitude=float(CENTRO_DO_RIO[1]), precisao="ENDERECO", fonte="brasilapi")
+        GeoCache.objects.create(cep="21725090", **ponto)  # a unidade
+        GeoCache.objects.create(cep="21660000", **ponto)  # um candidato
+        Candidato.objects.create(nome="Ana", cpf=cpf_valido(1), telefone=telefone_ficticio(1), cep="21660000", geo_status="ok")
+        self.assertEqual(self.client.post(reverse("mapa:relocalizar")).json(), {"recolocados": 1})
+        self.assertFalse(GeoCache.objects.exists())
+
+    def test_localizar_agora_tambem_acerta_a_unidade(self):
+        with mock.patch("core.geo.localizar_unidade") as unidade:
+            self.assertEqual(self.client.post(reverse("mapa:geocodificar")).status_code, 200)
+        unidade.assert_called_once_with()

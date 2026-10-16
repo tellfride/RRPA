@@ -156,6 +156,7 @@ def geocodificar(request):
     if not cache.add("mapa:geocodificar", 1, TRAVA_SEGUNDOS):
         return JsonResponse({"erro": "Já existe uma localização em andamento. Aguarde alguns instantes."}, status=429)
     try:
+        geo.localizar_unidade()  # o ponto da unidade acompanha o CEP dela (não consulta a rede se já estiver certo)
         # Devolve à fila os que falharam antes (o serviço de CEP pode ter estado fora do ar)
         Candidato.objects.filter(geo_status=Candidato.GeoStatus.FALHOU).exclude(cep="").update(geo_status=Candidato.GeoStatus.PENDENTE)
         lote = list(Candidato.objects.filter(geo_status=Candidato.GeoStatus.PENDENTE).order_by("id")[:LOTE_AGORA])
@@ -170,9 +171,11 @@ def geocodificar(request):
 @require_POST
 @perfil_requerido(*SOMENTE_ADMIN)
 def relocalizar(request):
-    """Manda todos os candidatos com CEP de volta à fila e esquece as consultas antigas de CEP."""
+    """Manda todos os candidatos com CEP de volta à fila e esquece as consultas antigas de CEP (inclusive a da unidade)."""
     ceps = [c for c in Candidato.objects.exclude(cep="").values_list("cep", flat=True).distinct() if validar_cep(c)]
-    GeoCache.objects.filter(cep__in=ceps).exclude(fonte="demo").delete()
+    unidade = Configuracao.atual().cep_unidade
+    esquecer = ceps + ([unidade] if validar_cep(unidade) else [])  # o worker acerta o ponto da unidade logo em seguida
+    GeoCache.objects.filter(cep__in=esquecer).exclude(fonte="demo").delete()
     GeoArea.objects.filter(encontrado=False).delete()  # bairros que o OpenStreetMap não achou: perguntar de novo
     total = Candidato.objects.filter(cep__in=ceps).update(geo_status=Candidato.GeoStatus.PENDENTE)
     LogAtividade.registrar(request.user, "mapa.relocalizar", f"Mandou {total} candidatos para relocalização", request=request)
