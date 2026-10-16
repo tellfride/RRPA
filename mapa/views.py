@@ -13,7 +13,7 @@ from candidatos.models import Candidato
 from contas.models import Usuario
 from core import geo
 from core.constantes import VINCULO_ATIVO
-from core.models import Configuracao, GeoArea, GeoCache, LogAtividade
+from core.models import Configuracao, GeoArea, GeoCache, GeoEndereco, LogAtividade
 from core.permissoes import EQUIPE_RECRUTAMENTO, SOMENTE_ADMIN, perfil_requerido
 from core.utils import validar_cep
 from painel import services as painel
@@ -177,6 +177,7 @@ def relocalizar(request):
     esquecer = ceps + ([unidade] if validar_cep(unidade) else [])  # o worker acerta o ponto da unidade logo em seguida
     GeoCache.objects.filter(cep__in=esquecer).exclude(fonte="demo").delete()
     GeoArea.objects.filter(encontrado=False).delete()  # bairros que o OpenStreetMap não achou: perguntar de novo
+    GeoEndereco.objects.all().delete()  # endereços com número (da unidade): procurar de novo
     total = Candidato.objects.filter(cep__in=ceps).update(geo_status=Candidato.GeoStatus.PENDENTE)
     LogAtividade.registrar(request.user, "mapa.relocalizar", f"Mandou {total} candidatos para relocalização", request=request)
     return JsonResponse({"recolocados": total})

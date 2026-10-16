@@ -1,11 +1,11 @@
 from django.contrib import admin
 
-from .models import Configuracao, GeoArea, GeoCache, LogAtividade
+from .models import Configuracao, GeoArea, GeoCache, GeoEndereco, LogAtividade
 
 
 @admin.register(Configuracao)
 class ConfiguracaoAdmin(admin.ModelAdmin):
-    list_display = ("nome_unidade", "cep_unidade", "prazo_meses", "contagem_prazo", "dias_alerta")
+    list_display = ("nome_unidade", "cep_unidade", "numero_unidade", "prazo_meses", "contagem_prazo", "dias_alerta")
 
 
 @admin.register(GeoCache)
@@ -20,6 +20,12 @@ class GeoAreaAdmin(admin.ModelAdmin):
     list_display = ("nome", "cidade", "uf", "tipo", "encontrado", "atualizado_em")
     search_fields = ("nome", "cidade")
     list_filter = ("tipo", "encontrado")
+
+
+@admin.register(GeoEndereco)
+class GeoEnderecoAdmin(admin.ModelAdmin):
+    list_display = ("chave", "encontrado", "latitude", "longitude", "atualizado_em")
+    list_filter = ("encontrado",)
 
 
 @admin.register(LogAtividade)

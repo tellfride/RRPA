@@ -16,7 +16,7 @@ from contas.models import Usuario
 from core import geo
 from core.fabrica import cpf_valido, telefone_ficticio
 from core.management.commands import geocodificar
-from core.models import Configuracao, GeoArea, GeoCache
+from core.models import Configuracao, GeoArea, GeoCache, GeoEndereco
 from core.utils import MES_CALENDARIO
 
 CENTRO_DO_RIO = ("-22.90642", "-43.18223")  # o que a BrasilAPI manda para quase todo CEP do Rio
@@ -333,8 +333,8 @@ class ConfiguracaoDaUnidadeTests(TestCase):
     def setUp(self):
         self.client.force_login(Usuario.objects.create_user(username="adm", password="x", perfil="admin"))
 
-    def salvar(self, cep, rede):
-        dados = {"nome_unidade": "HMAS", "cep_unidade": cep, "prazo_meses": 3, "contagem_prazo": MES_CALENDARIO,
+    def salvar(self, cep, rede, numero=""):
+        dados = {"nome_unidade": "HMAS", "cep_unidade": cep, "numero_unidade": numero, "prazo_meses": 3, "contagem_prazo": MES_CALENDARIO,
                  "dias_alerta": 30, "validade_convite_dias": 7}
         with mock.patch("core.geo.requests.get", side_effect=rede), mock.patch("core.geo.time.sleep"):
             return self.client.post(reverse("core:configuracoes"), dados, follow=True)
@@ -398,3 +398,140 @@ class MapaEUnidadeTests(TestCase):
         with mock.patch("core.geo.localizar_unidade") as unidade:
             self.assertEqual(self.client.post(reverse("mapa:geocodificar")).status_code, 200)
         unidade.assert_called_once_with()
+
+
+# ---------------------------------------------------------------- unidade com número: endereço exato
+def no_numero(numero="329", lat="-22.8665531", lon="-43.4419867"):
+    """O que o Nominatim devolve para '329 Rua Nilópolis': o próprio hospital, com house_number."""
+    return {"lat": lat, "lon": lon, "address": {"road": "Rua Nilópolis", "house_number": numero, "suburb": "Realengo"}}
+
+
+SO_A_RUA = {"lat": "-22.865407", "lon": "-43.441877", "address": {"road": "Rua Nilópolis", "suburb": "Realengo"}}  # sem house_number
+
+
+def com_numero(resultados):
+    """Responde só às buscas de endereço com número (a rua começa pelo número)."""
+    return lambda params: list(resultados) if params["street"][:1].isdigit() else []
+
+
+class NumeroDaUnidadeTests(TestCase):
+    def localizar(self, rede, **kwargs):
+        with mock.patch("core.geo.requests.get", side_effect=rede), mock.patch("core.geo.time.sleep"):
+            return geo.localizar_unidade(**kwargs)
+
+    def test_normaliza_o_numero_digitado(self):
+        for digitado, esperado in (("329", "329"), (" 329 ", "329"), ("Nº 329", "329"), ("n° 12-A", "12-a"), ("12 A", "12a"),
+                                   ("s/n", ""), ("S/N", ""), ("sem número", ""), ("", ""), (None, "")):
+            self.assertEqual(geo.numero_normalizado(digitado), esperado, digitado)
+
+    def test_com_o_numero_a_unidade_vai_para_o_endereco_exato(self):
+        config = configurar_unidade()
+        config.numero_unidade = "329"
+        config.save()
+        rede = rede_realengo(ruas=com_numero([no_numero()]))
+        self.assertEqual(self.localizar(rede), "numero")
+        config.refresh_from_db()
+        self.assertAlmostEqual(config.latitude, -22.8665531)  # o hospital, e não os ~200 m de diferença do ponto do CEP
+        self.assertAlmostEqual(config.longitude, -43.4419867)
+        self.assertEqual(config.endereco_unidade, "Rua Nilópolis, 329, Realengo, Rio de Janeiro")
+        (busca,) = rede.buscas_de_rua()
+        self.assertEqual((busca["street"], busca["bounded"]), ("329 Rua Nilópolis", 1))  # e preso ao bairro
+
+    def test_numero_que_o_osm_nao_tem_deixa_a_unidade_no_ponto_do_cep(self):
+        config = configurar_unidade()
+        config.numero_unidade = "77"
+        config.save()
+        self.assertEqual(self.localizar(rede_realengo(ruas=com_numero([SO_A_RUA]))), "cep")  # o OSM devolveu só a rua
+        config.refresh_from_db()
+        self.assertAlmostEqual(config.latitude, -22.8647392)
+        self.assertEqual(config.endereco_unidade, "Rua Nilópolis, Realengo, Rio de Janeiro")
+
+    def test_numero_de_outro_endereco_ou_fora_do_bairro_nao_vale(self):
+        for resultado in (no_numero("330"), no_numero("329", lat=CENTRO_DO_RIO[0], lon=CENTRO_DO_RIO[1])):
+            GeoEndereco.objects.all().delete()
+            config = configurar_unidade()
+            config.numero_unidade = "329"
+            config.save()
+            self.assertEqual(self.localizar(rede_realengo(ruas=com_numero([resultado]))), "cep")
+
+    def test_resposta_sobre_o_numero_fica_em_cache_inclusive_o_nao_achei(self):
+        config = configurar_unidade()
+        config.numero_unidade = "329"
+        config.save()
+        self.localizar(rede_realengo(ruas=com_numero([no_numero()])))
+        rede = rede_realengo(ruas=com_numero([no_numero()]))
+        self.assertEqual(self.localizar(rede), "numero")
+        self.assertEqual(rede.chamadas, [])
+        config.numero_unidade = "77"
+        config.save()
+        self.localizar(rede_realengo(ruas=com_numero([SO_A_RUA])))
+        rede = rede_realengo(ruas=com_numero([SO_A_RUA]))
+        self.assertEqual(self.localizar(rede), "cep")
+        self.assertEqual(rede.chamadas, [])  # nem a pergunta "tem o 77?" se repete a cada minuto
+
+    def test_osm_fora_do_ar_na_busca_do_numero_nao_troca_o_ponto(self):
+        config = configurar_unidade()
+        self.localizar(rede_realengo())  # sem número: fica no ponto do CEP e enche os caches
+        config.refresh_from_db()
+        ponto_do_cep = (config.latitude, config.longitude)
+        config.numero_unidade = "329"
+        config.save()
+        self.assertFalse(self.localizar(rede_realengo(osm_fora=True)))
+        config.refresh_from_db()
+        self.assertEqual((config.latitude, config.longitude), ponto_do_cep)
+
+    def test_sem_numero_ou_s_n_continua_no_ponto_do_cep_sem_perguntar_ao_osm(self):
+        for numero in ("", "s/n"):
+            config = configurar_unidade()
+            config.numero_unidade = numero
+            config.save()
+            rede = rede_realengo()
+            self.assertEqual(self.localizar(rede), "cep")
+            self.assertEqual(rede.buscas_de_rua(), [])
+
+    def test_relocalizar_esquece_os_pontos_com_numero(self):
+        GeoEndereco.objects.create(chave="21725090|329", latitude=-22.8665531, longitude=-43.4419867, encontrado=True)
+        self.client.force_login(Usuario.objects.create_user(username="adm", password="x", perfil="admin"))
+        self.client.post(reverse("mapa:relocalizar"))
+        self.assertFalse(GeoEndereco.objects.exists())
+
+
+class NumeroNaConfiguracaoTests(TestCase):
+    def setUp(self):
+        self.client.force_login(Usuario.objects.create_user(username="adm", password="x", perfil="admin"))
+
+    def salvar(self, numero, rede, cep="21725-090"):
+        dados = {"nome_unidade": "HMAS", "cep_unidade": cep, "numero_unidade": numero, "prazo_meses": 3,
+                 "contagem_prazo": MES_CALENDARIO, "dias_alerta": 30, "validade_convite_dias": 7}
+        with mock.patch("core.geo.requests.get", side_effect=rede), mock.patch("core.geo.time.sleep"):
+            return self.client.post(reverse("core:configuracoes"), dados, follow=True)
+
+    def test_a_tela_tem_o_campo_numero_ao_lado_do_cep(self):
+        pagina = self.client.get(reverse("core:configuracoes"))
+        self.assertContains(pagina, 'name="numero_unidade"')
+        self.assertContains(pagina, 'name="cep_unidade"')
+
+    def test_salvar_com_numero_localiza_no_endereco_exato(self):
+        self.salvar("329", rede_realengo(ruas=com_numero([no_numero()])))
+        config = Configuracao.atual()
+        self.assertEqual((config.cep_unidade, config.numero_unidade), ("21725090", "329"))
+        self.assertAlmostEqual(config.latitude, -22.8665531)
+
+    def test_acrescentar_o_numero_a_uma_unidade_ja_localizada_afina_o_ponto(self):
+        self.salvar("", rede_realengo())
+        antes = Configuracao.atual().latitude
+        self.salvar("329", rede_realengo(ruas=com_numero([no_numero()])))
+        self.assertNotEqual(Configuracao.atual().latitude, antes)
+
+    def test_tirar_o_numero_volta_para_o_ponto_do_cep(self):
+        self.salvar("329", rede_realengo(ruas=com_numero([no_numero()])))
+        self.salvar("", rede_realengo())
+        config = Configuracao.atual()
+        self.assertEqual(config.numero_unidade, "")
+        self.assertAlmostEqual(config.latitude, -22.8647392)
+
+    def test_numero_que_nao_esta_no_mapa_avisa(self):
+        resposta = self.salvar("77", rede_realengo(ruas=com_numero([SO_A_RUA])))
+        avisos = [str(m) for m in resposta.context["messages"]]
+        self.assertTrue(any("O número 77 não está no mapa" in m for m in avisos), avisos)
+        self.assertAlmostEqual(Configuracao.atual().latitude, -22.8647392)  # mesmo assim ficou no ponto do CEP

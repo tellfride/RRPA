@@ -29,10 +29,12 @@ class EstiloFormMixin:
 class ConfiguracaoForm(EstiloFormMixin, forms.ModelForm):
     cep_unidade = forms.CharField(label="CEP da unidade", max_length=9, required=False,
                                   help_text="Usado para calcular a distância dos candidatos no mapa.")
+    numero_unidade = forms.CharField(label="Número", max_length=15, required=False,
+                                     help_text="Com o número, a unidade é localizada no próprio endereço, e não só na rua do CEP.")
 
     class Meta:
         model = Configuracao
-        fields = ["nome_unidade", "cep_unidade", "prazo_meses", "contagem_prazo", "dias_alerta", "validade_convite_dias"]
+        fields = ["nome_unidade", "cep_unidade", "numero_unidade", "prazo_meses", "contagem_prazo", "dias_alerta", "validade_convite_dias"]
 
     def clean_cep_unidade(self):
         cep = so_digitos(self.cleaned_data.get("cep_unidade"))

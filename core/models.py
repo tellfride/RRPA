@@ -14,6 +14,7 @@ class Configuracao(models.Model):
 
     nome_unidade = models.CharField("Nome da unidade", max_length=120, default="Minha unidade")
     cep_unidade = models.CharField("CEP da unidade", max_length=8, blank=True)
+    numero_unidade = models.CharField("Número", max_length=15, blank=True)
     endereco_unidade = models.CharField("Endereço da unidade", max_length=200, blank=True)
     latitude = models.FloatField(null=True, blank=True)
     longitude = models.FloatField(null=True, blank=True)
@@ -44,6 +45,7 @@ class Configuracao(models.Model):
     def save(self, *args, **kwargs):
         self.pk = 1
         self.cep_unidade = so_digitos(self.cep_unidade)
+        self.numero_unidade = (self.numero_unidade or "").strip()
         super().save(*args, **kwargs)
 
     @classmethod
@@ -127,6 +129,23 @@ class GeoArea(models.Model):
 
     def __str__(self):
         return ", ".join(p for p in (self.nome, self.cidade, self.uf) if p)
+
+
+class GeoEndereco(models.Model):
+    """Ponto de um endereço com número ("rua, 329" de um CEP) no OpenStreetMap, para não repetir a consulta."""
+
+    chave = models.CharField(max_length=60, primary_key=True)  # CEP|número, sem acentos nem maiúsculas
+    latitude = models.FloatField(null=True, blank=True)
+    longitude = models.FloatField(null=True, blank=True)
+    encontrado = models.BooleanField(default=False)  # False = o OpenStreetMap não tem esse número (não perguntar de novo já)
+    atualizado_em = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "ponto de endereço com número"
+        verbose_name_plural = "pontos de endereços com número"
+
+    def __str__(self):
+        return self.chave
 
 
 class LogAtividade(models.Model):

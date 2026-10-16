@@ -61,21 +61,29 @@ def configuracoes(request):
             LogAtividade.registrar(request.user, "config.painel_publico", "Desativou o link do painel compartilhável", request=request)
             messages.success(request, "O link do painel compartilhável foi desativado.")
             return redirect("core:configuracoes")
-        antigo_cep = config.cep_unidade  # antes do formulário: ao validar, ele já grava o CEP novo no objeto
+        antigo = (config.cep_unidade, config.numero_unidade)  # antes do formulário: ao validar, ele já grava os valores novos no objeto
         form = ConfiguracaoForm(request.POST, instance=config)
         if form.is_valid():
             config = form.save()
-            if config.cep_unidade != antigo_cep or not config.cep_unidade:
-                # o ponto guardado era do CEP anterior (ou não há mais CEP): só vale o que for localizado agora
+            if (config.cep_unidade, config.numero_unidade) != antigo or not config.cep_unidade:
+                # o ponto guardado era do endereço anterior (ou não há mais CEP): só vale o que for localizado agora
                 config.latitude = config.longitude = None
                 config.endereco_unidade = ""
                 config.save(update_fields=["latitude", "longitude", "endereco_unidade"])
-            if config.cep_unidade and not geo.localizar_unidade(config):
-                messages.warning(
-                    request,
-                    "Não consegui localizar o CEP da unidade agora; o mapa não calculará distâncias até isso funcionar. "
-                    "O sistema tenta de novo sozinho.",
-                )
+            if config.cep_unidade:
+                nivel = geo.localizar_unidade(config)
+                if not nivel:
+                    messages.warning(
+                        request,
+                        "Não consegui localizar o endereço da unidade agora; o mapa não calculará distâncias até isso funcionar. "
+                        "O sistema tenta de novo sozinho.",
+                    )
+                elif nivel == "cep" and geo.numero_normalizado(config.numero_unidade):
+                    messages.warning(
+                        request,
+                        f"O número {config.numero_unidade} não está no mapa (OpenStreetMap): a unidade ficou no ponto do CEP, "
+                        "na rua certa mas sem o número exato.",
+                    )
             LogAtividade.registrar(request.user, "config.salva", "Atualizou as configurações do sistema", request=request)
             messages.success(request, "Configurações salvas.")
             return redirect("core:configuracoes")

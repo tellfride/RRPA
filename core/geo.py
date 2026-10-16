@@ -5,6 +5,7 @@ Cadeia de consulta (cada resposta fica em GeoCache, então um CEP é consultado 
   2. Nominatim/OSM -> limites do bairro (GeoArea), para conferir qualquer ponto antes de aceitá-lo
   3. AwesomeAPI    -> coordenadas do CEP; só valem se caírem dentro do bairro
   4. Nominatim/OSM -> a rua dentro do bairro; se não achar, o centro do bairro; se não, o centro da cidade
+  5. Só para a unidade: com o número informado, o endereço exato ("rua, número") no OSM; sem ele, vale o ponto do CEP
 
 As coordenadas que a BrasilAPI manda junto com o endereço NÃO são usadas. Para os CEPs do Rio de Janeiro ela devolve
 sempre o mesmo ponto (-22.90642, -43.18223, no Centro): numa amostra de 16 bairros todos caíram ali, a até 50 km do
@@ -12,6 +13,7 @@ lugar certo, e Guadalupe aparecia no centro da cidade. Por isso todo ponto é co
 """
 import logging
 import math
+import re
 import threading
 import time
 from datetime import timedelta
@@ -20,7 +22,7 @@ import requests
 from django.conf import settings
 from django.utils import timezone
 
-from .models import Configuracao, GeoArea, GeoCache
+from .models import Configuracao, GeoArea, GeoCache, GeoEndereco
 from .utils import normalizar_cep, sem_acentos, validar_cep
 
 log = logging.getLogger(__name__)
@@ -244,18 +246,64 @@ def _no_lugar(ponto, area):
 
 
 # ---------------------------------------------------------------- resolução do CEP
+def _buscas_no_bairro(area):
+    """Parâmetros extras de busca para ficar dentro do bairro: primeiro estritamente dentro dos limites; só se a rua não
+    estiver lá, com a folga dos limites aproximados do OSM (senão um CEP de Deodoro cairia no trecho da mesma avenida que
+    já é de Guadalupe). Sem o bairro conhecido, uma busca só, sem restrição."""
+    if area is None or area.tipo != GeoArea.Tipo.BAIRRO:
+        return [{}]
+    caixas = ((area.sul, area.norte, area.oeste, area.leste), _caixa_com_margem(area))
+    return [{"viewbox": f"{oeste},{norte},{leste},{sul}", "bounded": 1} for sul, norte, oeste, leste in caixas]
+
+
 def _rua_no_osm(base, area):
     """Ponto da rua do CEP no OSM. Com o bairro conhecido a busca fica restrita a ele: 'Avenida Brasil' existe em dezenas."""
     consulta = {"street": base["logradouro"], "city": base["cidade"], "state": base["uf"]}
-    if area is None or area.tipo != GeoArea.Tipo.BAIRRO:
-        return _nominatim(**consulta)
-    # Primeiro estritamente dentro do bairro; só se a rua não estiver lá, com a folga dos limites aproximados do OSM
-    # (senão um CEP de Deodoro cairia no trecho da mesma avenida que já é de Guadalupe).
-    for sul, norte, oeste, leste in ((area.sul, area.norte, area.oeste, area.leste), _caixa_com_margem(area)):
-        ponto = _nominatim(**consulta, viewbox=f"{oeste},{norte},{leste},{sul}", bounded=1)
+    for extra in _buscas_no_bairro(area):
+        ponto = _nominatim(**consulta, **extra)
         if ponto:
             return ponto
     return None
+
+
+def numero_normalizado(valor):
+    """'Nº 329' -> '329'; 's/n' (sem número) -> '' (vazio)."""
+    texto = re.sub(r"^n[º°o.]*\s*(?=\d)", "", _comparavel(valor))
+    texto = re.sub(r"[\s.]", "", texto)
+    return "" if texto in ("sn", "s/n", "semnumero") else texto
+
+
+def _tem_o_numero(achado, numero):
+    """O resultado do Nominatim é o próprio número procurado (e não só a rua, que ele devolve quando não tem o número)?"""
+    house_number = (achado.get("address") or {}).get("house_number") or ""
+    return any(numero_normalizado(parte) == numero for parte in re.split(r"[;,]", house_number))
+
+
+def _numero_no_osm(cache, numero, area):
+    """Ponto de 'número rua' do CEP no OSM, ou None se o OSM não tem esse número. Levanta ServicoIndisponivel."""
+    consulta = {"street": f"{numero} {cache.logradouro}", "city": cache.cidade, "state": cache.uf, "addressdetails": 1, "limit": 3}
+    for extra in _buscas_no_bairro(area):
+        for achado in _nominatim_busca(**consulta, **extra):
+            lat, lng = _float(achado.get("lat")), _float(achado.get("lon"))
+            if lat is not None and lng is not None and _tem_o_numero(achado, numero) and _no_lugar((lat, lng), area):
+                return lat, lng
+    return None
+
+
+def _ponto_do_numero(cache, numero, forcar=False):
+    """Ponto exato do endereço (rua e número) do CEP, ou None. Guarda a resposta, inclusive o 'o OSM não tem esse número'."""
+    numero = numero_normalizado(numero)
+    if not numero or not cache.logradouro or not cache.cidade:
+        return None
+    chave = f"{cache.cep}|{numero}"
+    registro = None if forcar else GeoEndereco.objects.filter(pk=chave).first()
+    if registro and (registro.encontrado or timezone.now() - registro.atualizado_em < REPETIR_AREA_DESCONHECIDA_APOS):
+        return (registro.latitude, registro.longitude) if registro.encontrado else None
+    ponto = _numero_no_osm(cache, numero, _area(cache.bairro, cache.cidade, cache.uf))
+    GeoEndereco.objects.update_or_create(pk=chave, defaults={
+        "latitude": ponto[0] if ponto else None, "longitude": ponto[1] if ponto else None, "encontrado": ponto is not None,
+    })
+    return ponto
 
 
 def _melhor_ponto(cep, base, area):
@@ -383,9 +431,10 @@ def aplicar_localizacao(candidato, forcar=False, somente_cache=False):
 
 
 def localizar_unidade(config=None, forcar=False):
-    """Põe na unidade (Configuracao) o ponto do CEP dela. Retorna True se a unidade ficou com o ponto do CEP.
+    """Põe na unidade (Configuracao) o ponto do endereço dela. Retorna "numero" (achou o número no OSM), "cep" (ficou no
+    ponto do CEP, que é o da rua) ou False (não localizou agora).
 
-    O ponto da unidade é uma cópia do que o GeoCache sabe sobre o CEP. O worker chama isto de tempos em tempos para
+    O ponto da unidade é uma cópia do que o GeoCache e o GeoEndereco sabem. O worker chama isto de tempos em tempos para
     mantê-la igual: se o cache for refeito (atualização do sistema, "Relocalizar"), a cópia se acerta sozinha. Sem isso a
     unidade ficava para sempre no ponto antigo (o Centro do Rio) e, com ela, os anéis de 5/10/20 km, o filtro por distância
     e a distância de cada candidato.
@@ -396,10 +445,19 @@ def localizar_unidade(config=None, forcar=False):
     cache = consultar_cep(config.cep_unidade, forcar=forcar)
     if cache is None or cache.provisorio or cache.latitude is None or cache.longitude is None:
         return False
-    if (config.latitude, config.longitude) != (cache.latitude, cache.longitude):
-        log.info("Unidade: ponto do CEP %s mudou de (%s, %s) para (%s, %s)", config.cep_unidade,
-                 config.latitude, config.longitude, cache.latitude, cache.longitude)
-        config.latitude, config.longitude = cache.latitude, cache.longitude
-        config.endereco_unidade = ", ".join(p for p in (cache.logradouro, cache.bairro, cache.cidade) if p)[:200]
+    ponto, nivel = (cache.latitude, cache.longitude), "cep"
+    try:
+        exato = _ponto_do_numero(cache, config.numero_unidade, forcar=forcar)
+    except ServicoIndisponivel as exc:  # sem poder conferir o número, não troca o ponto que a unidade já tem
+        log.warning("Unidade: não deu para procurar o número %s agora (%s)", config.numero_unidade, exc)
+        return False
+    if exato:
+        ponto, nivel = exato, "numero"
+    rua = f"{cache.logradouro}, {config.numero_unidade.strip()}" if nivel == "numero" else cache.logradouro
+    endereco = ", ".join(p for p in (rua, cache.bairro, cache.cidade) if p)[:200]
+    if (config.latitude, config.longitude, config.endereco_unidade) != (*ponto, endereco):
+        log.info("Unidade: ponto de %s mudou de (%s, %s) para (%s, %s) [%s]", config.cep_unidade,
+                 config.latitude, config.longitude, ponto[0], ponto[1], nivel)
+        config.latitude, config.longitude, config.endereco_unidade = ponto[0], ponto[1], endereco
         config.save(update_fields=["latitude", "longitude", "endereco_unidade"])
-    return True
+    return nivel

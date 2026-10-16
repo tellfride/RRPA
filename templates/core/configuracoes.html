@@ -11,8 +11,9 @@
       {% include "componentes/_form_erros.html" %}
       <h2 class="secao-titulo">Unidade</h2>
       <div class="form-grid">
-        <div class="col-8">{% include "componentes/_campo.html" with campo=form.nome_unidade %}</div>
-        <div class="col-4">{% include "componentes/_campo.html" with campo=form.cep_unidade %}</div>
+        <div class="col-12">{% include "componentes/_campo.html" with campo=form.nome_unidade %}</div>
+        <div class="col-6">{% include "componentes/_campo.html" with campo=form.cep_unidade %}</div>
+        <div class="col-6">{% include "componentes/_campo.html" with campo=form.numero_unidade %}</div>
       </div>
       {% if config.endereco_unidade %}<p class="small muted" style="margin-top:8px">{% icone "map-pin" %} Localizada em: {{ config.endereco_unidade }}</p>{% endif %}
 
